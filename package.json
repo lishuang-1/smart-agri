@@ -1,0 +1,17 @@
+{
+  "name": "smart-agri-h5",
+  "version": "1.0.0",
+  "description": "智慧乡村·惠农通 - 全栈H5应用",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "body-parser": "^1.20.2"
+  },
+  "keywords": ["agriculture", "h5", "village"],
+  "author": "",
+  "license": "MIT"
+}
