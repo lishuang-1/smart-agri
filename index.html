@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>村便民信息助手 · 全国通用版</title>
+    <!-- 部署说明：本项目可部署于 GitHub Pages 或 Railway，后端需自行搭建 API 接口，当前为纯前端模拟 -->
+    <style>
+        :root {
+            --primary: #1B5E20;
+            --primary-light: #2E7D32;
+            --primary-lighter: #4CAF50;
+            --primary-bg: #E8F5E9;
+            --accent: #FF8F00;
+            --accent-light: #FFC107;
+            --accent-bg: #FFF8E1;
+            --bg: #F5F7F5;
+            --card: #FFFFFF;
+            --text: #1A1A2E;
+            --text-secondary: #5A5A6E;
+            --text-light: #8A8A9E;
+            --border: #E0E0E0;
+            --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-fast: all 0.15s ease;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #app {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            max-height: 900px;
+            background: var(--bg);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
+        }
+        @media (min-width: 481px) {
+            #app { border-radius: 24px; height: 92vh; max-height: 820px; }
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: absolute; inset: 0; background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 40%, #388E3C 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000;
+            transition: opacity 0.6s ease, visibility 0.6s ease;
+        }
+        #loading-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+        .loading-logo { font-size: 48px; margin-bottom: 16px; animation: bounce 1.2s infinite; }
+        .loading-title { color: #fff; font-size: 22px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; }
+        .loading-subtitle { color: rgba(255,255,255,0.8); font-size: 14px; letter-spacing: 1px; }
+        .loading-spinner { margin-top: 24px; width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        /* Header */
+        .app-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            padding: 12px 16px 14px; color: #fff; flex-shrink: 0; position: relative; z-index: 10;
+            border-radius: 0 0 20px 20px;
+        }
+        .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .header-greeting { font-size: 13px; opacity: 0.85; }
+        .header-title { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+        .header-actions { display: flex; gap: 10px; }
+        .header-btn { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition-fast); backdrop-filter: blur(10px); }
+        .header-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.92); }
+        .search-bar { display: flex; align-items: center; background: rgba(255,255,255,0.2); border-radius: 12px; padding: 0 12px; height: 40px; cursor: pointer; transition: var(--transition-fast); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.25); }
+        .search-bar:active { background: rgba(255,255,255,0.3); }
+        .search-bar .search-icon { font-size: 16px; margin-right: 8px; opacity: 0.8; }
+        .search-bar .search-placeholder { font-size: 14px; opacity: 0.75; }
+        .search-bar .search-shortcut { font-size: 11px; opacity: 0.6; margin-left: auto; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; }
+
+        /* Main Content */
+        .main-content { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding: 16px 16px 12px; scroll-behavior: smooth; }
+        .main-content::-webkit-scrollbar { width: 3px; }
+        .main-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        /* AI Push Card */
+        .ai-card { background: linear-gradient(135deg, #FFF8E1 0%, #FFF3E0 50%, #FFECB3 100%); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; position: relative; overflow: hidden; border: 1px solid rgba(255,143,0,0.15); box-shadow: 0 4px 16px rgba(255,143,0,0.1); cursor: pointer; transition: var(--transition); }
+        .ai-card:active { transform: scale(0.98); box-shadow: 0 2px 8px rgba(255,143,0,0.15); }
+        .ai-card::before { content: ''; position: absolute; top: -50%; right: -30%; width: 200px; height: 200px; background: radial-gradient(circle, rgba(255,193,7,0.15) 0%, transparent 70%); border-radius: 50%; pointer-events: none; }
+        .ai-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase; }
+        .ai-badge .ai-icon { font-size: 12px; }
+        .ai-title { font-size: 16px; font-weight: 700; color: #4A3000; margin-bottom: 4px; line-height: 1.4; }
+        .ai-content { font-size: 13px; color: #6B4D00; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .ai-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 11px; color: #997A00; }
+        .ai-tag { background: rgba(255,143,0,0.15); padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+
+        /* Quick Actions */
+        .quick-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+        .quick-action { background: var(--card); border-radius: var(--radius-sm); padding: 12px 6px; text-align: center; cursor: pointer; transition: var(--transition-fast); border: 1px solid var(--border); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+        .quick-action:active { transform: scale(0.94); background: var(--primary-bg); border-color: var(--primary-lighter); }
+        .quick-action .qa-icon { font-size: 26px; display: block; margin-bottom: 6px; }
+        .quick-action .qa-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.3px; }
+        .quick-action .qa-badge { position: absolute; top: 6px; right: 6px; background: #E53935; color: #fff; font-size: 9px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+        /* Section Headers */
+        .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 0 2px; }
+        .section-title { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: 0.3px; display: flex; align-items: center; gap: 6px; }
+        .section-title .st-icon { font-size: 18px; }
+        .section-more { font-size: 12px; color: var(--text-light); cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: var(--transition-fast); display: flex; align-items: center; gap: 2px; }
+        .section-more:active { background: var(--primary-bg); color: var(--primary); }
+
+        /* Category Tabs */
+        .category-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 8px; margin-bottom: 8px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .category-tabs::-webkit-scrollbar { display: none; }
+        .cat-tab { flex-shrink: 0; padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: var(--transition-fast); border: 1.5px solid var(--border); background: var(--card); color: var(--text-secondary); letter-spacing: 0.3px; white-space: nowrap; }
+        .cat-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 12px rgba(27,94,32,0.25); }
+        .cat-tab:active { transform: scale(0.95); }
+
+        /* Content Cards */
+        .content-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+        .content-card { background: var(--card); border-radius: var(--radius-sm); padding: 14px 14px; cursor: pointer; transition: var(--transition-fast); border: 1px solid var(--border); box-shadow: var(--shadow); position: relative; }
+        .content-card:active { transform: scale(0.97); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .content-card .cc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+        .content-card .cc-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.4; flex: 1; }
+        .content-card .cc-category { flex-shrink: 0; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 8px; background: var(--primary-bg); color: var(--primary-light); letter-spacing: 0.3px; }
+        .content-card .cc-category.agri { background: #E3F2FD; color: #1565C0; }
+        .content-card .cc-category.notice { background: #FCE4EC; color: #C62828; }
+        .content-card .cc-category.legal { background: #E8EAF6; color: #3949AB; }
+        .content-card .cc-content { font-size: 12px; color: var(--text-secondary); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .content-card .cc-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--text-light); }
+        .content-card .cc-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+        .content-card .cc-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--bg); color: var(--text-secondary); }
+        .content-card .cc-date { font-size: 11px; color: var(--text-light); flex-shrink: 0; }
+
+        /* Priority badge */
+        .priority-high { position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #E53935; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+        .priority-medium { position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #FF8F00; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+
+        /* Bottom Navigation */
+        .bottom-nav { background: var(--card); border-top: 1px solid var(--border); padding: 6px 0 calc(6px + var(--safe-bottom)); display: flex; justify-content: space-around; align-items: center; flex-shrink: 0; position: relative; z-index: 10; box-shadow: 0 -2px 12px rgba(0,0,0,0.04); }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; cursor: pointer; transition: var(--transition-fast); border: none; background: none; font-family: var(--font); position: relative; min-width: 52px; }
+        .nav-item .nav-icon { font-size: 20px; transition: var(--transition-fast); opacity: 0.6; }
+        .nav-item .nav-label { font-size: 10px; font-weight: 600; color: var(--text-light); letter-spacing: 0.3px; transition: var(--transition-fast); }
+        .nav-item.active .nav-icon { opacity: 1; transform: scale(1.1); }
+        .nav-item.active .nav-label { color: var(--primary); font-weight: 700; }
+        .nav-item.active::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 20px; height: 3px; background: var(--primary); border-radius: 0 0 3px 3px; }
+        .nav-item:active { transform: scale(0.92); }
+
+        /* Modal Overlay */
+        .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; display: flex; align-items: flex-end; justify-content: center; opacity: 0; visibility: hidden; transition: var(--transition); backdrop-filter: blur(4px); }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-panel { background: var(--card); border-radius: 20px 20px 0 0; width: 100%; max-height: 85%; overflow-y: auto; padding: 20px 18px 24px; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; -webkit-overflow-scrolling: touch; }
+        .modal-overlay.show .modal-panel { transform: translateY(0); }
+        .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 14px; cursor: pointer; }
+        .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; color: var(--text); letter-spacing: 0.3px; }
+        .modal-close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; background: var(--bg); border: none; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); transition: var(--transition-fast); }
+        .modal-close:active { background: var(--border); transform: scale(0.9); }
+
+        /* Search Overlay */
+        .search-overlay { position: absolute; inset: 0; background: var(--bg); z-index: 200; display: flex; flex-direction: column; opacity: 0; visibility: hidden; transition: var(--transition); }
+        .search-overlay.show { opacity: 1; visibility: visible; }
+        .search-header { background: var(--primary); padding: 12px 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; border-radius: 0 0 16px 16px; }
+        .search-input-wrap { flex: 1; display: flex; align-items: center; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 0 12px; height: 38px; border: 1px solid rgba(255,255,255,0.25); }
+        .search-input-wrap .si-icon { font-size: 14px; margin-right: 6px; opacity: 0.7; color: #fff; }
+        .search-input-wrap input { flex: 1; background: none; border: none; color: #fff; font-size: 14px; outline: none; font-family: var(--font); letter-spacing: 0.3px; }
+        .search-input-wrap input::placeholder { color: rgba(255,255,255,0.6); }
+        .search-cancel { color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px; background: none; border: none; font-family: var(--font); letter-spacing: 0.5px; flex-shrink: 0; }
+        .search-results { flex: 1; overflow-y: auto; padding: 14px 16px; -webkit-overflow-scrolling: touch; }
+        .search-results .sr-count { font-size: 12px; color: var(--text-light); margin-bottom: 10px; letter-spacing: 0.3px; }
+        .search-results .sr-empty { text-align: center; padding: 40px 0; color: var(--text-light); font-size: 14px; }
+        .search-results .sr-empty .se-icon { font-size: 48px; display: block; margin-bottom: 12px; }
+        .search-highlight { color: var(--accent); font-weight: 700; }
+
+        /* Detail View */
+        .detail-view { position: absolute; inset: 0; background: var(--bg); z-index: 150; display: flex; flex-direction: column; opacity: 0; visibility: hidden; transition: var(--transition); transform: translateX(20px); }
+        .detail-view.show { opacity: 1; visibility: visible; transform: translateX(0); }
+        .detail-header { background: var(--primary); padding: 12px 14px; display: flex; align-items: center; gap: 10px; color: #fff; flex-shrink: 0; border-radius: 0 0 16px 16px; }
+        .detail-back { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition-fast); flex-shrink: 0; }
+        .detail-back:active { background: rgba(255,255,255,0.3); }
+        .detail-header .dh-title { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .detail-body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+        .detail-content { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); line-height: 1.8; font-size: 14px; color: var(--text); }
+        .detail-content h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: var(--primary); }
+        .detail-content p { margin-bottom: 12px; color: var(--text-secondary); }
+        .detail-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-light); }
+
+        /* Admin Panel */
+        .admin-panel { position: absolute; inset: 0; background: var(--bg); z-index: 180; display: flex; flex-direction: column; opacity: 0; visibility: hidden; transition: var(--transition); transform: translateY(20px); }
+        .admin-panel.show { opacity: 1; visibility: visible; transform: translateY(0); }
+        .admin-header { background: linear-gradient(135deg, #263238 0%, #37474F 100%); padding: 14px 16px; display: flex; align-items: center; color: #fff; flex-shrink: 0; gap: 10px; border-radius: 0 0 16px 16px; }
+        .admin-body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+        .admin-form { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
+        .admin-form label { font-size: 13px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 5px; letter-spacing: 0.3px; }
+        .admin-form input, .admin-form textarea, .admin-form select { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-family: var(--font); outline: none; transition: var(--transition-fast); margin-bottom: 10px; background: var(--bg); color: var(--text); letter-spacing: 0.3px; resize: none; }
+        .admin-form input:focus, .admin-form textarea:focus, .admin-form select:focus { border-color: var(--primary-lighter); box-shadow: 0 0 0 3px rgba(76,175,80,0.15); }
+        .admin-form .btn-submit { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: var(--transition-fast); letter-spacing: 0.5px; font-family: var(--font); }
+        .admin-form .btn-submit:active { background: var(--primary-light); transform: scale(0.97); }
+        .admin-notice-list { display: flex; flex-direction: column; gap: 8px; }
+        .admin-notice-item { background: var(--card); border-radius: var(--radius-sm); padding: 12px; box-shadow: var(--shadow); border-left: 3px solid var(--primary); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .admin-notice-item .ani-info { flex: 1; min-width: 0; }
+        .admin-notice-item .ani-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .admin-notice-item .ani-date { font-size: 11px; color: var(--text-light); }
+        .admin-notice-item .btn-delete { width: 30px; height: 30px; border-radius: 50%; background: #FFEBEE; border: none; color: #E53935; cursor: pointer; font-size: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: var(--transition-fast); }
+        .admin-notice-item .btn-delete:active { background: #FFCDD2; transform: scale(0.9); }
+
+        /* Login / Register */
+        .auth-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; min-height: 60vh; }
+        .auth-box { width: 100%; max-width: 320px; background: var(--card); border-radius: var(--radius); padding: 24px 20px; box-shadow: var(--shadow-lg); }
+        .auth-title { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 20px; color: var(--primary); }
+        .auth-tabs { display: flex; gap: 10px; margin-bottom: 16px; }
+        .auth-tab { flex: 1; padding: 8px; text-align: center; border-radius: 8px; font-weight: 600; cursor: pointer; background: var(--bg); color: var(--text-secondary); transition: var(--transition-fast); }
+        .auth-tab.active { background: var(--primary); color: #fff; }
+        .auth-input { margin-bottom: 12px; }
+        .auth-btn { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: var(--transition-fast); }
+        .auth-btn:active { background: var(--primary-light); transform: scale(0.98); }
+        .auth-error { color: #E53935; font-size: 12px; margin-top: 8px; text-align: center; }
+
+        /* Toast */
+        .toast { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 300; opacity: 0; visibility: hidden; transition: var(--transition); letter-spacing: 0.3px; white-space: nowrap; backdrop-filter: blur(10px); }
+        .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+
+        /* Stats Card */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+        .stat-card { background: var(--card); border-radius: var(--radius-sm); padding: 10px 4px; text-align: center; box-shadow: var(--shadow); border: 1px solid var(--border); }
+        .stat-card .sc-number { font-size: 18px; font-weight: 700; color: var(--primary); }
+        .stat-card .sc-label { font-size: 9px; color: var(--text-light); margin-top: 2px; letter-spacing: 0.3px; }
+
+        /* QR Scan */
+        .qr-scan-btn { position: fixed; bottom: 90px; right: 16px; width: 48px; height: 48px; border-radius: 50%; background: var(--primary); color: #fff; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; z-index: 50; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: var(--transition-fast); }
+        .qr-scan-btn:active { transform: scale(0.9); background: var(--primary-light); }
+
+        @media (max-width: 360px) {
+            .quick-actions { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+            .quick-action .qa-icon { font-size: 22px; }
+            .quick-action .qa-label { font-size: 10px; }
+            .ai-title { font-size: 14px; }
+            .content-card .cc-title { font-size: 13px; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+        }
+        .fade-in { animation: fadeIn 0.35s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-logo">🌾</div>
+        <div class="loading-title">村便民信息助手</div>
+        <div class="loading-subtitle">全国通用 · 智慧乡村</div>
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Main App UI -->
+    <header class="app-header">
+        <div class="header-top">
+            <div>
+                <div class="header-greeting" id="greeting-text">早上好</div>
+                <div class="header-title">🌾 村便民信息助手</div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" onclick="toggleAdmin()" title="管理后台">⚙️</button>
+                <button class="header-btn" onclick="showAuth()" title="登录/注册">👤</button>
+            </div>
+        </div>
+        <div class="search-bar" onclick="openSearch()">
+            <span class="search-icon">🔍</span>
+            <span class="search-placeholder">搜索政策、农技、法律、通知...</span>
+            <span class="search-shortcut">搜索</span>
+        </div>
+    </header>
+
+    <div class="main-content" id="main-content">
+        <!-- AI Push Card -->
+        <div class="ai-card fade-in" onclick="viewAI()">
+            <div class="ai-badge"><span class="ai-icon">🤖</span> AI 智能推送</div>
+            <div class="ai-title" id="ai-title">当前农事提醒</div>
+            <div class="ai-content" id="ai-content">根据季节和常见作物，为您推荐当前农事操作建议...</div>
+            <div class="ai-footer">
+                <span>📅 根据当前季节智能推荐</span>
+                <span class="ai-tag" id="ai-tag">🌱 通用</span>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions fade-in">
+            <div class="quick-action" onclick="navigateTo('policy')"><span class="qa-icon">📋</span><span class="qa-label">惠农政策</span></div>
+            <div class="quick-action" onclick="navigateTo('agri')"><span class="qa-icon">🌱</span><span class="qa-label">农技知识</span></div>
+            <div class="quick-action" onclick="navigateTo('legal')"><span class="qa-icon">⚖️</span><span class="qa-label">法律</span></div>
+            <div class="quick-action" onclick="navigateTo('notice')"><span class="qa-icon">📢</span><span class="qa-label">村务通知</span><span class="qa-badge" id="notice-badge">0</span></div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row fade-in">
+            <div class="stat-card"><div class="sc-number" id="stat-policies">0</div><div class="sc-label">惠农政策</div></div>
+            <div class="stat-card"><div class="sc-number" id="stat-agri">0</div><div class="sc-label">农技知识</div></div>
+            <div class="stat-card"><div class="sc-number" id="stat-legal">0</div><div class="sc-label">法律知识</div></div>
+            <div class="stat-card"><div class="sc-number" id="stat-notices">0</div><div class="sc-label">村务通知</div></div>
+        </div>
+
+        <!-- Latest Notices -->
+        <div class="section-header"><span class="section-title"><span class="st-icon">📢</span> 最新村务通知</span><span class="section-more" onclick="navigateTo('notice')">查看全部 ›</span></div>
+        <div class="content-list" id="home-notices"></div>
+
+        <!-- Recommended Policies -->
+        <div class="section-header" style="margin-top:8px;"><span class="section-title"><span class="st-icon">📋</span> 惠农政策推荐</span><span class="section-more" onclick="navigateTo('policy')">查看全部 ›</span></div>
+        <div class="content-list" id="home-policies"></div>
+
+        <!-- Recommended Agri -->
+        <div class="section-header" style="margin-top:8px;"><span class="section-title"><span class="st-icon">🌱</span> 农技知识推荐</span><span class="section-more" onclick="navigateTo('agri')">查看全部 ›</span></div>
+        <div class="content-list" id="home-agri"></div>
+
+        <!-- Recommended Legal -->
+        <div class="section-header" style="margin-top:8px;"><span class="section-title"><span class="st-icon">⚖️</span> 法律知识推荐</span><span class="section-more" onclick="navigateTo('legal')">查看全部 ›</span></div>
+        <div class="content-list" id="home-legal"></div>
+        <div style="height:20px;"></div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <button class="nav-item active" data-page="home" onclick="navigateTo('home')"><span class="nav-icon">🏠</span><span class="nav-label">首页</span></button>
+        <button class="nav-item" data-page="policy" onclick="navigateTo('policy')"><span class="nav-icon">📋</span><span class="nav-label">政策</span></button>
+        <button class="nav-item" data-page="agri" onclick="navigateTo('agri')"><span class="nav-icon">🌱</span><span class="nav-label">农技</span></button>
+        <button class="nav-item" data-page="legal" onclick="navigateTo('legal')"><span class="nav-icon">⚖️</span><span class="nav-label">法律</span></button>
+        <button class="nav-item" data-page="notice" onclick="navigateTo('notice')"><span class="nav-icon">📢</span><span class="nav-label">通知</span></button>
+        <button class="nav-item" data-page="more" onclick="navigateTo('more')"><span class="nav-icon">☰</span><span class="nav-label">更多</span></button>
+    </nav>
+
+    <!-- QR Scan Button -->
+    <button class="qr-scan-btn" onclick="simulateScan()" title="扫描新动态">📷</button>
+
+    <!-- Search Overlay -->
+    <div class="search-overlay" id="search-overlay">
+        <div class="search-header">
+            <div class="search-input-wrap"><span class="si-icon">🔍</span><input type="text" id="search-input" placeholder="输入关键词搜索..." autocomplete="off"></div>
+            <button class="search-cancel" onclick="closeSearch()">取消</button>
+        </div>
+        <div class="search-results" id="search-results">
+            <div class="sr-count" id="sr-count">共 0 条结果</div>
+            <div class="sr-empty" id="sr-empty"><span class="se-icon">🔍</span>输入关键词开始搜索</div>
+            <div class="content-list" id="search-result-list"></div>
+        </div>
+    </div>
+
+    <!-- Detail View -->
+    <div class="detail-view" id="detail-view">
+        <div class="detail-header">
+            <button class="detail-back" onclick="closeDetail()">‹</button>
+            <span class="dh-title" id="detail-title">详情</span>
+        </div>
+        <div class="detail-body"><div class="detail-content" id="detail-content"></div></div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div class="admin-panel" id="admin-panel">
+        <div class="admin-header">
+            <button class="detail-back" onclick="closeAdmin()" style="background:rgba(255,255,255,0.15);">‹</button>
+            <span style="font-weight:700;font-size:16px;">🔐 管理后台</span>
+        </div>
+        <div class="admin-body" id="admin-body">
+            <!-- 登录/注册界面 -->
+            <div class="auth-container" id="auth-container">
+                <div class="auth-box">
+                    <div class="auth-title">登录 / 注册</div>
+                    <div class="auth-tabs">
+                        <div class="auth-tab active" data-mode="login" onclick="switchAuthMode('login')">登录</div>
+                        <div class="auth-tab" data-mode="register" onclick="switchAuthMode('register')">注册</div>
+                    </div>
+                    <div class="auth-input"><input type="text" id="auth-username" placeholder="用户名" autocomplete="off"></div>
+                    <div class="auth-input"><input type="password" id="auth-password" placeholder="密码"></div>
+                    <button class="auth-btn" id="auth-btn" onclick="handleAuth()">登 录</button>
+                    <div class="auth-error" id="auth-error"></div>
+                </div>
+            </div>
+            <!-- 管理内容（登录后显示） -->
+            <div id="admin-dashboard" style="display:none;">
+                <div style="font-size:16px;font-weight:700;margin-bottom:12px;">欢迎，<span id="admin-username"></span></div>
+                <div class="admin-form">
+                    <label>📋 发布新内容</label>
+                    <select id="content-type">
+                        <option value="notice">村务通知</option>
+                        <option value="policy">惠农政策</option>
+                        <option value="agri">农技知识</option>
+                        <option value="legal">法律知识</option>
+                    </select>
+                    <input type="text" id="content-title-input" placeholder="标题">
+                    <input type="text" id="content-category-input" placeholder="分类（如：种粮补贴）">
+                    <input type="text" id="content-tags-input" placeholder="标签，用逗号分隔">
+                    <textarea id="content-content-input" rows="4" placeholder="详细内容..."></textarea>
+                    <button class="btn-submit" onclick="publishContent()">发布内容</button>
+                </div>
+                <div style="font-size:14px;font-weight:700;margin-bottom:8px;">我发布的内容</div>
+                <div class="admin-notice-list" id="admin-content-list"></div>
+                <button class="btn-submit" style="background:#E53935;margin-top:12px;" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============ 数据库（全国通用，含法律） ============
+    const DB = {
+        policies: [ /* 50条政策数据（同前，略作精简） */
+            { id:'p001', title:'种粮农民一次性补贴政策', category:'种粮补贴', content:'为保障种粮农民收益，国家继续实施种粮农民一次性补贴。补贴对象为实际种粮农民和新型农业经营主体，补贴标准根据各地实际情况确定，一般稻谷、小麦、玉米等主粮作物每亩补贴几十至上百元不等。资金通过"一卡通"直接发放，请符合条件的农户及时向村委会申报面积。', date:'2026-08-15', tags:['补贴','粮食','一卡通'], source:'农业农村部门' },
+            { id:'p002', title:'城乡居民基本医疗保险缴费指南', category:'医保缴费', content:'2026年度城乡居民基本医疗保险集中缴费期一般为9月至12月，个人缴费标准全国平均约380元/人/年。参保居民可享受门诊统筹、住院报销、大病保险等待遇。缴费方式包括线上APP、银行代扣、村委会代收等。特困人员、低保对象等困难群体享受全额或定额资助。', date:'2026-09-01', tags:['医保','缴费','健康'], source:'医疗保障局' },
+            { id:'p003', title:'农机购置补贴申请流程及标准', category:'农机补贴', content:'农机购置补贴继续实施，补贴机具涵盖拖拉机、收割机、插秧机、烘干机、播种机等15大类。补贴标准一般为购机价格的30%左右，单台最高补贴限额根据机型确定。申请流程：购机后携带身份证、发票、合格证到村委会登记，经乡镇审核、县级审批后发放。鼓励购置智能、绿色农机装备。', date:'2026-07-20', tags:['农机','补贴','购置'], source:'农业农村部门' },
+            { id:'p004', title:'主要农作物种植保险参保通知', category:'农业保险', content:'主要农作物（水稻、小麦、玉米、大豆等）种植保险开始参保。保费由财政补贴大部分，农户自缴比例约20%。保险责任涵盖暴雨、洪水、干旱、病虫害等自然灾害。最高赔付金额根据作物和保额确定。请有意参保的农户到村委会登记。', date:'2026-08-28', tags:['保险','农作物','参保'], source:'保险公司' },
+            { id:'p005', title:'农村危房改造补助政策', category:'住房保障', content:'农村危房改造补助政策继续实施。补助对象为农村低保户、分散供养特困人员、贫困残疾人家庭等。C级危房修缮补助约每户1-2万元，D级危房重建补助约每户3-5万元。申请流程：向村委会提出申请，经评议、审核、审批后实施。验收合格后发放补助。', date:'2026-06-10', tags:['危房改造','住房','补助'], source:'住建部门' },
+            { id:'p006', title:'耕地地力保护补贴发放公告', category:'耕地补贴', content:'耕地地力保护补贴开始发放，补贴标准由各省确定，一般每亩几十元至上百元。补贴对象为拥有耕地承包权的种地农民。补贴面积以确权面积为基础。资金通过"一卡通"直接发放。请农户核对面积，如有异议及时反映。', date:'2026-09-05', tags:['耕地','补贴','地力保护'], source:'农业农村部门' },
+            { id:'p007', title:'农村最低生活保障申请条件及流程', category:'社会救助', content:'农村最低生活保障标准由各地根据经济发展水平确定，申请条件为家庭年人均收入低于当地低保标准。申请流程：向村委会提交书面申请，提供身份证、户口簿、收入证明等材料，经民主评议、乡镇审核、县级审批后纳入。低保金按月发放。', date:'2026-07-01', tags:['低保','救助','申请'], source:'民政部门' },
+            { id:'p008', title:'农村义务教育学生营养改善计划', category:'教育资助', content:'继续实施农村义务教育学生营养改善计划，补助标准为每生每天5元，全年按200天计算。覆盖农村义务教育阶段学生。同时实施"两免一补"政策，免除学杂费、免费提供教科书，对家庭经济困难寄宿生给予生活补助。', date:'2026-08-25', tags:['教育','营养餐','资助'], source:'教育部门' },
+            { id:'p009', title:'城乡居民基本养老保险缴费政策', category:'养老保险', content:'城乡居民基本养老保险缴费档次从每年200元至5000元多个档次，政府给予缴费补贴，多缴多得。年满60周岁且累计缴费满15年可按月领取养老金。鼓励村民选择较高档次缴费，增加个人账户积累。', date:'2026-03-01', tags:['养老','保险','缴费'], source:'人社部门' },
+            { id:'p010', title:'农村饮水安全工程运行管理办法', category:'基础设施', content:'为保障农村饮水安全，各村成立饮水管理小组，负责水源保护、管网维护、水费收缴等工作。水费标准由村民代表会议确定，原则上不超过每吨2元。县级水利部门安排专项资金用于工程维修养护。请村民自觉爱护供水设施。', date:'2026-05-15', tags:['饮水','基础设施','维护'], source:'水利部门' },
+            { id:'p011', title:'农村改厕补贴政策', category:'环境整治', content:'继续推进农村"厕所革命"，新建或改造无害化卫生厕所的农户，经验收合格每户补贴1000-3000元。补助对象为未享受过改厕补贴的农户。建设标准为三格式化粪池或水冲式厕所。申请流程：向村委会申报，验收合格后发放补贴。', date:'2026-04-20', tags:['改厕','环境','补贴'], source:'农业农村部门' },
+            { id:'p012', title:'农村电商扶持政策', category:'创业扶持', content:'为促进农村电商发展，对开设网店销售农产品的农户或合作社，年销售额达到一定标准给予奖励。提供免费电商培训、直播带货指导等服务。建设镇级电商服务站，提供物流集散、产品包装、品牌打造等支持。', date:'2026-06-01', tags:['电商','创业','扶持'], source:'商务部门' },
+            { id:'p013', title:'秸秆禁烧及综合利用补贴', category:'生态环保', content:'继续实施秸秆禁烧政策，对实施秸秆还田、青贮、饲料化利用的农户给予补贴。秸秆还田补贴每亩20-40元，青贮饲料补贴每吨30-50元。严禁露天焚烧秸秆，违者依法处罚。鼓励采用秸秆覆盖还田、堆肥还田等方式。', date:'2026-05-10', tags:['秸秆','环保','补贴'], source:'生态环境部门' },
+            { id:'p014', title:'农村小额信贷贴息政策', category:'金融扶持', content:'对脱贫户和监测户发放的5万元以下小额贷款，财政全额贴息。贷款期限最长3年，用途限于发展种植、养殖、加工等生产经营活动。申请流程：向村委会提出申请，经乡镇审核后由合作银行发放。', date:'2026-02-15', tags:['贷款','金融','贴息'], source:'乡村振兴部门' },
+            { id:'p015', title:'农村公益性岗位招聘公告', category:'就业帮扶', content:'农村公益性岗位招聘：保洁员、护林员、护路员、河道管护员等。招聘对象为有劳动能力的脱贫户和监测户家庭成员。工资标准每月800-1500元，工作时间灵活。有意者请携带身份证到村委会报名。', date:'2026-09-02', tags:['就业','公益岗位','招聘'], source:'人社部门' },
+            { id:'p016', title:'农村宅基地审批管理新规', category:'土地管理', content:'严格执行"一户一宅"制度，宅基地面积不得超过省级规定标准（一般每户不超过200平方米）。农村村民建房须先申请、后建设。审批流程：向村委会提出申请，村民小组公示，乡镇审核批准。未经批准擅自建设的，依法拆除。', date:'2026-03-20', tags:['宅基地','土地','审批'], source:'自然资源部门' },
+            { id:'p017', title:'农村养老服务补贴政策', category:'养老服务', content:'对80周岁以上高龄老人发放高龄津贴，标准由各地确定。对农村失能老人提供居家养老服务补贴，标准为每人每月100-300元。申请方式：向村委会申报，经审核后按月发放。', date:'2026-04-01', tags:['养老','高龄','补贴'], source:'民政部门' },
+            { id:'p018', title:'农业技术培训计划通知', category:'技能培训', content:'农业农村部门将组织种植技术、病虫害防治、科学施肥、农产品质量安全等培训班。培训对象为种植大户、合作社成员和有意愿的农户。培训免费，提供午餐。请到村委会报名。', date:'2026-08-30', tags:['培训','技术','农业'], source:'农业农村部门' },
+            { id:'p019', title:'农村人居环境整治提升行动', category:'环境整治', content:'推进农村人居环境整治提升，包括生活垃圾分类、污水治理、村容村貌提升、绿化美化等。对评选为"美丽庭院"的农户给予奖励。各村每月开展卫生评比活动。', date:'2026-07-15', tags:['人居环境','整治','美丽乡村'], source:'乡镇政府' },
+            { id:'p020', title:'粮食最低收购价政策', category:'粮食收购', content:'国家继续实行小麦、稻谷最低收购价政策，具体价格水平由国家发改委等部门公布。收购质量标准按国家标准执行。各粮食收购点严格执行国家质量标准，不得压级压价。', date:'2026-09-01', tags:['粮食','收购','价格'], source:'粮食部门' },
+            { id:'p021', title:'农村土地经营权流转政策', category:'土地流转', content:'鼓励农户将承包地流转给种植大户、合作社或农业企业。流转期限不得超过承包期剩余期限。流转费用由双方协商确定，签订规范流转合同。流转后承包权不变，经营权归流入方。', date:'2026-03-05', tags:['土地流转','承包','经营权'], source:'农业农村部门' },
+            { id:'p022', title:'农村残疾人补贴政策', category:'残疾人保障', content:'困难残疾人生活补贴和重度残疾人护理补贴标准由各地确定，一般每月几十至几百元。同时实施残疾人家庭无障碍改造补贴。申请流程：持残疾证向村委会申报。', date:'2026-05-20', tags:['残疾人','补贴','保障'], source:'残联' },
+            { id:'p023', title:'农村饮水安全巩固提升工程', category:'基础设施', content:'实施农村饮水安全巩固提升工程，对老旧管网进行改造，新建或扩建供水设施，提高供水保证率。优先解决脱贫地区、边远山区饮水问题。请村民配合施工，共同维护饮水安全。', date:'2026-03-10', tags:['饮水','工程','提升'], source:'水利部门' },
+            { id:'p024', title:'农村电网改造升级政策', category:'基础设施', content:'继续实施农村电网改造升级，提高供电可靠性和电压质量，满足农村生产生活用电需求。重点解决低电压、频繁停电等问题。改造期间可能临时停电，请村民理解配合。', date:'2026-02-20', tags:['电网','改造','供电'], source:'电力部门' },
+            { id:'p025', title:'农村道路建设与养护政策', category:'基础设施', content:'推进"四好农村路"建设，实施农村公路提档升级和危桥改造。村道养护实行"路长制"，落实日常养护责任。请村民爱护公路设施，不得在公路上打场晒粮。', date:'2026-04-15', tags:['道路','建设','养护'], source:'交通部门' },
+            { id:'p026', title:'农村通信网络覆盖工程', category:'基础设施', content:'推进农村通信网络覆盖，实现行政村4G/5G网络全覆盖，提升农村宽带接入能力。鼓励电信运营商推出惠农资费套餐。请村民积极使用信息化工具，享受数字乡村红利。', date:'2026-05-05', tags:['通信','网络','覆盖'], source:'通信管理局' },
+            { id:'p027', title:'农村金融服务点建设', category:'金融扶持', content:'在行政村设立金融服务点，提供小额取款、转账、缴费、贷款咨询等服务。鼓励银行机构开展整村授信，为农户提供信用贷款。请村民珍惜信用记录。', date:'2026-03-15', tags:['金融','服务点','授信'], source:'金融监管部门' },
+            { id:'p028', title:'农村创业担保贷款政策', category:'创业扶持', content:'对返乡创业农民工、退伍军人等提供创业担保贷款，个人最高可贷20万元，财政给予部分贴息。贷款期限最长3年。申请条件：有创业项目、信用良好。请到人社部门或合作银行咨询。', date:'2026-06-20', tags:['创业','贷款','担保'], source:'人社部门' },
+            { id:'p029', title:'农村电商快递进村工程', category:'基础设施', content:'实施"快递进村"工程，在行政村设立快递服务站，实现快递收寄全覆盖。支持农产品上行，降低物流成本。请村民积极利用电商平台销售农产品。', date:'2026-07-01', tags:['快递','电商','物流'], source:'邮政管理部门' },
+            { id:'p030', title:'农村文化惠民工程', category:'文化建设', content:'实施农村文化惠民工程，建设农家书屋、文化广场、乡村舞台等设施。定期开展送戏下乡、电影放映、文艺培训等活动。请村民积极参与，丰富精神文化生活。', date:'2026-08-01', tags:['文化','惠民','活动'], source:'文旅部门' },
+            { id:'p031', title:'农村体育健身设施建设', category:'文体设施', content:'在行政村建设体育健身设施，包括篮球场、乒乓球台、健身路径等。鼓励村民开展全民健身活动。请爱护健身器材，注意使用安全。', date:'2026-05-25', tags:['体育','健身','设施'], source:'体育部门' },
+            { id:'p032', title:'农村卫生室标准化建设', category:'医疗卫生', content:'推进农村卫生室标准化建设，配备基本医疗设备，提升村医服务能力。村民可在家门口享受基本医疗和公共卫生服务。请支持村卫生室工作。', date:'2026-04-10', tags:['卫生室','医疗','标准化'], source:'卫生健康部门' },
+            { id:'p033', title:'农村生活垃圾治理政策', category:'环境整治', content:'建立农村生活垃圾收运处置体系，推行垃圾分类。每户配置分类垃圾桶，村配备保洁员。请村民自觉将垃圾分类投放，不得随意倾倒。', date:'2026-06-05', tags:['垃圾','治理','分类'], source:'住建部门' },
+            { id:'p034', title:'农村生活污水治理政策', category:'环境整治', content:'推进农村生活污水治理，因地制宜建设污水处理设施或资源化利用。鼓励农户将生活污水用于庭院绿化、菜园灌溉。请村民不要将污水直接排入河道。', date:'2026-06-15', tags:['污水','治理','环保'], source:'生态环境部门' },
+            { id:'p035', title:'农村厕所革命后续管护政策', category:'环境整治', content:'建立农村改厕后续管护机制，成立维修服务队伍，提供粪污清掏服务。设立服务电话，及时解决农户厕所使用问题。请村民正确使用和维护卫生厕所。', date:'2026-07-20', tags:['厕所','管护','服务'], source:'农业农村部门' },
+            { id:'p036', title:'农村妇女创业就业支持', category:'创业扶持', content:'开展农村妇女创业就业培训，提供小额贷款支持，培育巾帼致富带头人。鼓励妇女发展特色种植、养殖、手工编织等产业。请有意愿的妇女到妇联报名。', date:'2026-03-08', tags:['妇女','创业','就业'], source:'妇联' },
+            { id:'p037', title:'农村青年返乡创业扶持', category:'创业扶持', content:'实施农村青年返乡创业扶持计划，提供创业培训、导师辅导、项目对接等服务。对优秀创业项目给予资金奖励。请返乡青年积极投身乡村振兴。', date:'2026-05-04', tags:['青年','返乡','创业'], source:'共青团' },
+            { id:'p038', title:'农村退伍军人就业安置', category:'就业帮扶', content:'做好农村退伍军人就业安置工作，提供职业技能培训，推荐就业岗位。对自主创业的退伍军人给予税收优惠和贷款支持。请退伍军人到退役军人事务部门登记。', date:'2026-08-01', tags:['退伍军人','就业','安置'], source:'退役军人事务部门' },
+            { id:'p039', title:'农村留守儿童关爱保护', category:'儿童关爱', content:'建立农村留守儿童关爱保护体系，落实监护人责任，提供心理辅导、学业辅导等服务。村委会定期走访留守儿童家庭。请村民共同关注留守儿童健康成长。', date:'2026-06-01', tags:['留守儿童','关爱','保护'], source:'民政部门' },
+            { id:'p040', title:'农村养老服务设施建设', category:'养老服务', content:'建设农村幸福院、日间照料中心等养老服务设施，为农村老年人提供助餐、助洁、助医等服务。鼓励社会力量参与农村养老服务。请村民支持养老服务设施建设。', date:'2026-08-20', tags:['养老','设施','服务'], source:'民政部门' },
+            { id:'p041', title:'农村移风易俗倡导', category:'文明建设', content:'倡导婚事新办、丧事简办，反对高价彩礼、大操大办。各村修订村规民约，成立红白理事会。请村民自觉抵制不良风气，树立文明新风。', date:'2026-07-10', tags:['移风易俗','文明','新风'], source:'宣传部门' },
+            { id:'p042', title:'农村扫黑除恶常态化', category:'法治建设', content:'常态化开展农村扫黑除恶斗争，严厉打击村霸、宗族恶势力等违法犯罪行为。请村民积极举报涉黑涉恶线索，共同维护农村社会稳定。', date:'2026-04-01', tags:['扫黑除恶','法治','稳定'], source:'政法部门' },
+            { id:'p043', title:'农村普法宣传教育', category:'法治建设', content:'开展农村普法宣传教育活动，重点宣传民法典、土地管理法、农村土地承包法等法律法规。提供法律咨询服务，引导村民依法维权。请村民积极参与普法学习。', date:'2026-05-15', tags:['普法','法律','宣传'], source:'司法部门' },
+            { id:'p044', title:'农村安全防范知识普及', category:'安全知识', content:'普及农村防火、防盗、防诈骗、防溺水等安全知识。定期开展安全演练。请村民提高安全意识，注意用电用气安全，防范电信网络诈骗。', date:'2026-06-25', tags:['安全','防范','知识'], source:'应急管理部门' },
+            { id:'p045', title:'农村自然灾害救助政策', category:'社会救助', content:'对因自然灾害造成生活困难的农户给予救助，包括紧急转移安置、生活救助、倒房重建补助等。请受灾农户及时向村委会报告灾情，申请救助。', date:'2026-07-05', tags:['自然灾害','救助','灾情'], source:'应急管理部门' },
+            { id:'p046', title:'农村医疗救助政策', category:'医疗卫生', content:'对农村特困人员、低保对象等困难群体实施医疗救助，资助参保、门诊救助、住院救助。救助标准由各地确定。请符合条件的农户申请医疗救助。', date:'2026-03-20', tags:['医疗','救助','困难群体'], source:'医疗保障部门' },
+            { id:'p047', title:'农村教育扶贫政策', category:'教育资助', content:'继续实施农村教育扶贫政策，对建档立卡脱贫家庭学生给予资助，包括学前教育、义务教育、高中教育、高等教育各阶段。请符合条件的学生申请。', date:'2026-08-15', tags:['教育','扶贫','资助'], source:'教育部门' },
+            { id:'p048', title:'农村产业扶贫项目', category:'产业扶持', content:'实施农村产业扶贫项目，支持发展特色种植、养殖、加工等产业。提供产业扶持资金、技术指导、市场对接等服务。请有发展意愿的农户参与。', date:'2026-02-10', tags:['产业','扶贫','项目'], source:'乡村振兴部门' },
+            { id:'p049', title:'农村消费扶贫政策', category:'消费帮扶', content:'鼓励机关、企事业单位采购脱贫地区农产品，开展消费扶贫。建设消费扶贫专柜、专馆、专区。请农户积极提供优质农产品。', date:'2026-05-20', tags:['消费','扶贫','农产品'], source:'乡村振兴部门' },
+            { id:'p050', title:'农村数字乡村建设', category:'数字乡村', content:'推进农村数字乡村建设，建设数字农业、智慧农村、数字政务等平台。提供农业物联网、电商直播、远程医疗等服务。请村民积极学习数字技能。', date:'2026-09-10', tags:['数字乡村','智慧','信息化'], source:'网信部门' },
+        ],
+        agriTech: [ /* 50条农技数据 */ 
+            { id:'a001', title:'水稻抽穗期田间管理技术', category:'粮食作物', content:'水稻抽穗期是产量形成的关键时期。管理要点：保持浅水层3-5厘米，抽穗后20天左右排水晒田。追施穗肥，每亩尿素3-5公斤+氯化钾5公斤。重点防治稻瘟病、纹枯病和稻飞虱。叶面喷施磷酸二氢钾2-3次。', date:'2026-08-20', tags:['水稻','抽穗期','管理'], season:'夏季' },
+            { id:'a002', title:'小麦赤霉病综合防治技术', category:'粮食作物', content:'小麦赤霉病是长江中下游麦区重要病害。症状：穗部出现粉红色霉层。防治：选用抗病品种，适期播种，合理施肥。抽穗扬花期用戊唑醇、咪鲜胺等药剂防治，见花打药，5-7天后再喷一次。', date:'2026-04-10', tags:['小麦','赤霉病','防治'], season:'春季' },
+            { id:'a003', title:'玉米中后期田间管理技术', category:'粮食作物', content:'玉米大喇叭口期追施攻穗肥，每亩尿素15-20公斤。中耕培土，防止倒伏。重点防治玉米螟、粘虫、大小斑病。干旱时及时灌溉，多雨时注意排涝。适时晚收可增产5-10%。', date:'2026-07-15', tags:['玉米','田间管理','施肥'], season:'夏季' },
+            { id:'a004', title:'大豆高产栽培技术', category:'粮食作物', content:'选用高产优质品种，适时早播。合理密植，每亩留苗1.2-1.5万株。增施有机肥，花期追施氮磷钾复合肥。防治大豆食心虫、蚜虫等。开花结荚期保持土壤湿润，鼓粒期防止干旱。', date:'2026-05-10', tags:['大豆','栽培','高产'], season:'夏季' },
+            { id:'a005', title:'油菜育苗移栽技术', category:'经济作物', content:'油菜育苗移栽：选择肥沃疏松地块作苗床，9月中下旬播种，苗龄30-35天移栽。移栽密度每亩8000-10000株。苗期防治蚜虫和菜青虫，越冬前浇防冻水。', date:'2026-09-05', tags:['油菜','育苗','移栽'], season:'秋季' },
+            { id:'a006', title:'蔬菜大棚秋冬茬种植技术', category:'蔬菜园艺', content:'秋冬茬蔬菜大棚种植：选择耐寒、抗病品种，整地施肥，9月上中旬定植。温度管理白天20-25℃，夜间12-15℃。采用滴灌，追肥以水溶肥为主。使用防虫网、黄板等物理防治。', date:'2026-09-03', tags:['蔬菜','大棚','秋冬茬'], season:'秋季' },
+            { id:'a007', title:'苹果树秋季管理技术', category:'果树种植', content:'苹果树秋季管理：秋施基肥，每亩有机肥3000公斤+复合肥50公斤。果实采收后及时清园，防治早期落叶病。浇封冻水，树干涂白防冻。', date:'2026-09-20', tags:['苹果','秋季管理','施肥'], season:'秋季' },
+            { id:'a008', title:'柑橘黄龙病综合防控', category:'果树种植', content:'柑橘黄龙病是毁灭性病害，由木虱传播。防控：种植无病苗木，及时挖除病树，防治柑橘木虱。冬季清园，夏季抹芽控梢。化学防治用吡虫啉、噻虫嗪等。', date:'2026-06-15', tags:['柑橘','黄龙病','防控'], season:'夏季' },
+            { id:'a009', title:'茶叶秋季管理技术', category:'特色种植', content:'茶叶秋季管理：轻修剪，追施秋肥，以有机肥为主。防治茶小绿叶蝉、茶尺蠖等害虫。干旱时及时灌溉，保持土壤湿润。秋茶采摘注意留叶养树。', date:'2026-08-25', tags:['茶叶','秋季管理','修剪'], season:'秋季' },
+            { id:'a010', title:'土壤酸化改良技术', category:'土壤肥料', content:'土壤酸化影响作物生长。改良方法：施用石灰每亩50-100公斤，增施有机肥，种植绿肥，施用土壤调理剂如硅钙肥、生物炭等。合理轮作，避免长期连作。建议每2-3年检测土壤pH值。', date:'2026-06-20', tags:['土壤','酸化','改良'], season:'全年' },
+            { id:'a011', title:'有机水稻种植技术规范', category:'有机种植', content:'有机水稻种植：产地环境远离污染源，选用抗病虫品种。土壤培肥使用有机肥、绿肥、生物菌肥。病虫害采用农业、物理、生物防治，禁止化学农药。杂草控制采用人工除草、覆盖稻草、稻田养鸭等。', date:'2026-05-15', tags:['有机','水稻','种植'], season:'全年' },
+            { id:'a012', title:'稻鸭共作生态种养技术', category:'生态种养', content:'稻鸭共作：水稻移栽后15-20天放鸭，每亩15-20只。鸭子可除草、除虫、施肥，减少农药化肥使用。保持浅水层，适当投喂。水稻抽穗前收回鸭子。提高稻米品质。', date:'2026-07-01', tags:['稻鸭共作','生态','种养'], season:'夏季' },
+            { id:'a013', title:'水稻机插秧技术要点', category:'机械化生产', content:'水稻机插秧：硬盘育秧，秧龄18-22天。整地田面平整，高低差不超过3厘米。插秧机株距12-14厘米，每穴3-5株，插深1.5-2厘米。插后浅水护苗，5-7天查苗补缺。', date:'2026-05-20', tags:['水稻','机插秧','机械化'], season:'春季' },
+            { id:'a014', title:'小麦科学施肥技术', category:'粮食作物', content:'小麦施肥：基肥每亩有机肥2000公斤+复合肥40公斤。返青期追施尿素10公斤，拔节期追施尿素15公斤。后期叶面喷施磷酸二氢钾，防止早衰。注意氮磷钾配合。', date:'2026-03-15', tags:['小麦','施肥','科学管理'], season:'春季' },
+            { id:'a015', title:'玉米病虫害绿色防控技术', category:'植保技术', content:'玉米病虫害绿色防控：选用抗病品种，轮作倒茬。物理防治使用杀虫灯、性诱剂。生物防治释放赤眼蜂防治玉米螟，使用Bt制剂。化学防治选用高效低毒农药，交替用药。', date:'2026-06-01', tags:['玉米','绿色防控','病虫害'], season:'夏季' },
+            { id:'a016', title:'水稻节水灌溉技术', category:'灌溉技术', content:'水稻节水灌溉：浅湿灌溉，浅水栽秧，薄水分蘖，够苗晒田，有水抽穗，干湿壮籽。间歇灌溉，灌一次水自然落干后2-3天再灌。蓄雨灌溉，充分利用降雨。可节水30-50%。', date:'2026-06-10', tags:['水稻','节水','灌溉'], season:'夏季' },
+            { id:'a017', title:'农作物种子选购注意事项', category:'种子知识', content:'选购种子：到正规门店购买，查看审定编号、生产日期。索要购种凭证，保存包装袋。选择适合当地气候的品种。不要购买散装种子。播种前进行发芽试验，发芽率低于85%不要使用。', date:'2026-03-10', tags:['种子','选购','注意事项'], season:'春季' },
+            { id:'a018', title:'水稻育秧技术要点', category:'粮食作物', content:'水稻育秧：选种晒种，盐水选种。浸种催芽，用多菌灵消毒。苗床选择背风向阳地块，播种量每亩20-25公斤。保持湿润，及时揭膜通风。防治立枯病、稻蓟马。', date:'2026-03-25', tags:['水稻','育秧','技术'], season:'春季' },
+            { id:'a019', title:'农田杂草综合防除技术', category:'植保技术', content:'农田杂草防除：农业措施合理轮作、深耕翻压。机械除草中耕松土。生物除草稻田养鸭。化学除草选择对路除草剂，在杂草幼苗期施药。注意按说明书使用。', date:'2026-05-05', tags:['杂草','防除','除草剂'], season:'全年' },
+            { id:'a020', title:'农作物倒伏原因及预防', category:'粮食作物', content:'倒伏原因：品种抗倒性差、偏施氮肥、密度过大、深水灌溉、病虫害等。预防：选用抗倒品种，增施钾肥硅肥，合理密植，浅湿灌溉，适时晒田，及时防治病虫害。', date:'2026-07-10', tags:['倒伏','预防','管理'], season:'夏季' },
+            { id:'a021', title:'全国主要农事月历（通用）', category:'农事安排', content:'1-2月：冬闲田翻耕，准备农资。3月：春耕备耕，育苗。4月：播种移栽，查苗补苗。5-6月：田间管理，追肥除草，防治病虫害。7-8月：夏收夏种，抗旱排涝。9-10月：秋收秋种，颗粒归仓。11-12月：冬季农田水利建设。具体请结合当地气候调整。', date:'2026-01-01', tags:['农事月历','通用','安排'], season:'全年' },
+            { id:'a022', title:'水稻稻曲病防治技术', category:'植保技术', content:'稻曲病是水稻穗期重要病害，稻粒上形成墨绿色粉状菌块。防治：选用抗病品种，抽穗前7-10天用苯醚甲环唑·丙环唑或戊唑醇预防。发病后摘除病粒，收获后清除病株残体。', date:'2026-08-05', tags:['水稻','稻曲病','防治'], season:'夏季' },
+            { id:'a023', title:'农村沼气安全使用知识', category:'安全知识', content:'沼气安全使用：进料后严禁烟火，定期检查管道漏气。灶具使用后关闭阀门，出料时注意通风。检修由专业人员操作。发现漏气立即开窗通风，禁止开关电器。', date:'2026-04-01', tags:['沼气','安全','使用'], season:'全年' },
+            { id:'a024', title:'农药安全使用技术规范', category:'安全知识', content:'农药安全使用：选购正规农药，按说明书配药。施药穿戴防护服，选择无风天气。施药后清洗身体，包装废弃物回收。安全间隔期内不得采收。', date:'2026-06-01', tags:['农药','安全','规范'], season:'全年' },
+            { id:'a025', title:'水稻灌浆期水分管理', category:'粮食作物', content:'水稻灌浆期保持田间湿润，干湿交替灌溉。灌水后自然落干2-3天再灌。收割前7-10天排水晾田。防止长期淹水导致根系早衰。高温干旱适当增加灌溉。', date:'2026-08-25', tags:['水稻','灌浆期','水分管理'], season:'夏季' },
+            { id:'a026', title:'畜禽养殖粪污资源化利用', category:'畜牧养殖', content:'畜禽粪污资源化利用：堆肥发酵，温度55℃以上持续7天。沼气发酵，产生沼气和沼肥。养殖废水沉淀后还田。规模化养殖配套有机肥加工。解决污染，提供有机肥。', date:'2026-05-01', tags:['养殖','粪污','资源化'], season:'全年' },
+            { id:'a027', title:'生猪科学养殖技术', category:'畜牧养殖', content:'生猪科学养殖：选好品种，科学配料。做好猪瘟、口蹄疫等疫苗接种。保持圈舍清洁，定期消毒。冬季保暖，夏季降温。合理分群，防止咬架。', date:'2026-07-15', tags:['生猪','养殖','技术'], season:'全年' },
+            { id:'a028', title:'家禽疫病防控技术', category:'畜牧养殖', content:'家禽疫病防控：做好禽流感、新城疫等疫苗接种。保持圈舍通风干燥，定期消毒。实行全进全出制，避免混养。发现疫情及时报告。', date:'2026-08-10', tags:['家禽','疫病','防控'], season:'全年' },
+            { id:'a029', title:'牛羊科学饲养管理', category:'畜牧养殖', content:'牛羊饲养：合理搭配粗精饲料，保证充足饮水。做好布病、口蹄疫等免疫。定期驱虫，保持圈舍卫生。冬季补饲，夏季防暑。', date:'2026-06-20', tags:['牛羊','饲养','管理'], season:'全年' },
+            { id:'a030', title:'淡水鱼养殖技术', category:'水产养殖', content:'淡水鱼养殖：选择适宜品种，合理放养密度。定期换水，保持水质。科学投喂，防治鱼病。使用增氧机，防止浮头。', date:'2026-07-05', tags:['淡水鱼','养殖','技术'], season:'夏季' },
+            { id:'a031', title:'食用菌栽培技术', category:'特色种植', content:'食用菌栽培：选择适宜品种，如平菇、香菇、木耳等。培养料配制、灭菌、接种、发菌、出菇管理。控制温湿度，防治杂菌。', date:'2026-09-15', tags:['食用菌','栽培','技术'], season:'秋季' },
+            { id:'a032', title:'中药材种植技术', category:'特色种植', content:'中药材种植：根据当地气候选择品种，如金银花、黄芪、当归等。整地施肥，适时播种。田间管理注意除草、追肥、病虫害防治。采收加工按标准执行。', date:'2026-05-30', tags:['中药材','种植','技术'], season:'全年' },
+            { id:'a033', title:'农产品初加工技术', category:'加工储藏', content:'农产品初加工：包括清洗、分级、包装、冷藏等。粮食烘干采用低温循环烘干机，防止霉变。果蔬预冷后冷藏，延长保鲜期。加工场所保持卫生。', date:'2026-08-15', tags:['农产品','加工','储藏'], season:'秋季' },
+            { id:'a034', title:'农村电商运营技巧', category:'数字农业', content:'农村电商运营：拍摄高质量产品图片，撰写详细描述。利用直播带货，打造品牌。参加平台促销活动，积累好评。注意物流包装，保证产品质量。', date:'2026-09-01', tags:['电商','运营','技巧'], season:'全年' },
+            { id:'a035', title:'农业物联网应用技术', category:'数字农业', content:'农业物联网：安装传感器监测土壤温湿度、气象数据。通过手机APP远程控制灌溉、施肥。利用无人机进行植保作业。提高生产效率，节约成本。', date:'2026-09-10', tags:['物联网','智慧农业','技术'], season:'全年' },
+            { id:'a036', title:'农作物秸秆还田技术', category:'土壤肥料', content:'秸秆还田：收获时留高茬或粉碎还田，配合施用秸秆腐熟剂。翻压深度15-20厘米。注意补充氮肥，防止微生物与作物争氮。长期还田可提高土壤有机质。', date:'2026-10-05', tags:['秸秆','还田','土壤'], season:'秋季' },
+            { id:'a037', title:'绿肥种植与利用技术', category:'土壤肥料', content:'绿肥种植：紫云英、苕子、田菁等。秋季播种，春季翻压。绿肥可固定氮素，改善土壤结构。翻压后20天再种植作物，避免烧苗。', date:'2026-09-20', tags:['绿肥','种植','利用'], season:'秋季' },
+            { id:'a038', title:'测土配方施肥技术', category:'土壤肥料', content:'测土配方施肥：取土样检测养分含量，根据作物需肥规律制定配方。氮磷钾配合，有机无机结合。减少盲目施肥，提高肥料利用率。', date:'2026-04-20', tags:['测土','配方','施肥'], season:'春季' },
+            { id:'a039', title:'果树冬季修剪技术', category:'果树种植', content:'果树冬季修剪：落叶后至萌芽前进行。疏除病枝、弱枝、交叉枝，培养结果枝组。修剪后涂抹伤口保护剂。不同树种修剪方法不同。', date:'2026-12-15', tags:['果树','冬季修剪','管理'], season:'冬季' },
+            { id:'a040', title:'茶园病虫害绿色防控', category:'特色种植', content:'茶园病虫害绿色防控：采用诱虫灯、色板诱杀。保护天敌，使用生物农药。合理修剪，改善通风透光。化学防治选用高效低毒农药，注意安全间隔期。', date:'2026-07-10', tags:['茶园','病虫害','绿色防控'], season:'夏季' },
+            { id:'a041', title:'水稻稻飞虱综合防控', category:'植保技术', content:'稻飞虱防治指标：每百丛800-1000头。保护蜘蛛、瓢虫等天敌。药剂防治用噻虫嗪、呋虫胺等，重点喷施稻株基部。交替用药，防止抗性。', date:'2026-08-18', tags:['水稻','稻飞虱','防治'], season:'夏季' },
+            { id:'a042', title:'小麦条锈病监测与防治', category:'植保技术', content:'小麦条锈病流行性强，加强监测。发现中心病株及时防治，用三唑酮、戊唑醇等药剂。后期结合叶面喷肥，增强抗病性。', date:'2026-04-05', tags:['小麦','条锈病','防治'], season:'春季' },
+            { id:'a043', title:'玉米草地贪夜蛾防控', category:'植保技术', content:'草地贪夜蛾为害玉米，重点防控幼虫。使用性诱剂监测，及时施药。选用氯虫苯甲酰胺、乙基多杀菌素等药剂，傍晚施药效果佳。', date:'2026-07-01', tags:['玉米','草地贪夜蛾','防控'], season:'夏季' },
+            { id:'a044', title:'蔬菜病虫害绿色防控', category:'蔬菜园艺', content:'蔬菜病虫害绿色防控：选用抗病品种，轮作倒茬。使用防虫网、银灰膜避蚜。黄板诱杀蚜虫、粉虱。生物农药优先，化学农药按安全间隔期使用。', date:'2026-06-10', tags:['蔬菜','病虫害','绿色防控'], season:'夏季' },
+            { id:'a045', title:'果树施肥技术要点', category:'果树种植', content:'果树施肥：秋施基肥为主，占全年60-70%。追肥在萌芽前、花后、果实膨大期。叶面喷肥补充微量元素。施肥深度20-40厘米，与根系分布相适应。', date:'2026-10-20', tags:['果树','施肥','管理'], season:'秋季' },
+            { id:'a046', title:'水产养殖水质管理', category:'水产养殖', content:'水产养殖水质管理：定期检测pH、溶氧、氨氮。使用生石灰调节pH，增氧机增氧。定期换水，保持水体清新。合理投喂，防止残饵污染。', date:'2026-08-01', tags:['水产','水质','管理'], season:'夏季' },
+            { id:'a047', title:'农村家庭农场经营管理', category:'经营管理', content:'家庭农场经营管理：做好市场调研，选择适宜项目。制定生产计划，控制成本。建立生产记录，实现可追溯。拓展销售渠道，提高效益。', date:'2026-09-01', tags:['家庭农场','经营','管理'], season:'全年' },
+            { id:'a048', title:'农民专业合作社运营', category:'经营管理', content:'农民专业合作社运营：民主管理，利益共享。统一采购农资，降低成本。统一技术标准，提高品质。统一销售，增强议价能力。', date:'2026-06-15', tags:['合作社','运营','管理'], season:'全年' },
+            { id:'a049', title:'农产品质量安全知识', category:'安全知识', content:'农产品质量安全：合理使用农药化肥，严禁使用高毒禁用农药。遵守安全间隔期，做好生产记录。上市前检测，确保合格。', date:'2026-05-20', tags:['农产品','质量安全','知识'], season:'全年' },
+            { id:'a050', title:'农村消防安全知识', category:'安全知识', content:'农村消防安全：不私拉乱接电线，不超负荷用电。柴草堆远离火源，不乱扔烟头。教育儿童不玩火。发生火灾及时报警，科学扑救。', date:'2026-06-25', tags:['消防','安全','知识'], season:'全年' },
+        ],
+        legal: [
+            { id:'l001', title:'中华人民共和国土地管理法（要点）', category:'土地管理', content:'土地管理法规定：农村村民一户只能拥有一处宅基地，面积不得超过省、自治区、直辖市规定的标准。农村村民建住宅，应当符合乡（镇）土地利用总体规划、村庄规划，不得占用永久基本农田。农村村民出卖、出租、赠与住宅后，再申请宅基地的，不予批准。', date:'2026-01-01', tags:['土地管理','宅基地','一户一宅'], source:'全国人大' },
+            { id:'l002', title:'农村土地承包法核心条款', category:'土地承包', content:'农村土地承包法规定：耕地的承包期为三十年，草地的承包期为三十年至五十年，林地的承包期为三十年至七十年。承包期内，发包方不得收回承包地。承包方可以自主决定依法采取出租、入股或者其他方式向他人流转土地经营权。', date:'2026-01-01', tags:['土地承包','承包期','流转'], source:'全国人大' },
+            { id:'l003', title:'民法典关于相邻关系的规定', category:'民法典', content:'民法典规定：不动产的相邻权利人应当按照有利生产、方便生活、团结互助、公平合理的原则，正确处理相邻关系。用水、排水、通行、通风、采光等应当提供必要的便利。不得妨碍相邻建筑物的通风、采光和日照。', date:'2026-01-01', tags:['民法典','相邻关系','权益'], source:'全国人大' },
+            { id:'l004', title:'农村土地征收补偿标准', category:'征地补偿', content:'土地管理法规定：征收农用地的土地补偿费、安置补助费标准由省、自治区、直辖市通过制定公布区片综合地价确定。征收土地应当依法及时足额支付土地补偿费、安置补助费以及农村村民住宅、其他地上附着物和青苗等的补偿费用，并安排被征地农民的社会保障费用。', date:'2026-01-01', tags:['征地','补偿','标准'], source:'全国人大' },
+            { id:'l005', title:'农民工工资支付保障条例', category:'劳动权益', content:'保障农民工工资支付条例规定：农民工有按时足额获得工资的权利。任何单位和个人不得拖欠农民工工资。用人单位应当与农民工签订劳动合同，实行实名制管理。拖欠农民工工资的，由人力资源社会保障行政部门责令限期支付。', date:'2026-01-01', tags:['农民工','工资','保障'], source:'国务院' },
+            { id:'l006', title:'农村宅基地确权登记规定', category:'土地管理', content:'宅基地使用权应依法登记。不动产登记机构应当根据当事人的申请，对宅基地使用权及房屋所有权进行登记。宅基地使用权和房屋所有权首次登记应当由农户申请，提交身份证明、权属来源等材料。', date:'2026-01-01', tags:['宅基地','确权','登记'], source:'自然资源部门' },
+            { id:'l007', title:'农村集体经济组织法（草案要点）', category:'集体经济', content:'农村集体经济组织依法代表成员集体行使集体财产所有权。成员享有土地承包经营权、宅基地使用权、集体收益分配权等。农村集体经济组织应当实行民主管理，重大事项经成员大会或成员代表大会讨论决定。', date:'2026-01-01', tags:['集体经济','组织','成员权益'], source:'全国人大' },
+            { id:'l008', title:'种子法关于品种保护的规定', category:'农业法规', content:'种子法规定：国家实行植物新品种保护制度。未经品种权人许可，不得生产、繁殖、销售授权品种的繁殖材料。农民自繁自用授权品种的繁殖材料，可以不经品种权人许可，不向其支付使用费。', date:'2026-01-01', tags:['种子','品种保护','授权'], source:'全国人大' },
+            { id:'l009', title:'农产品质量安全法要点', category:'食品安全', content:'农产品质量安全法规定：农产品生产者应当合理使用农药、兽药、肥料、饲料添加剂等农业投入品，严格执行安全间隔期或者休药期的规定。禁止在农产品生产过程中使用国家明令禁止的农业投入品。', date:'2026-01-01', tags:['农产品','质量安全','农业投入品'], source:'全国人大' },
+            { id:'l010', title:'农村五保供养条例', category:'社会救助', content:'农村五保供养包括：供给粮油、副食品和生活用燃料；供给服装、被褥等生活用品和零用钱；提供符合基本居住条件的住房；提供疾病治疗，对生活不能自理的给予照料；办理丧葬事宜。供养标准不得低于当地村民的平均生活水平。', date:'2026-01-01', tags:['五保','供养','救助'], source:'国务院' },
+            { id:'l011', title:'农村危房改造补助资金管理办法', category:'住房保障', content:'危房改造补助资金用于支持农村低收入群体等重点对象实施危房改造。补助资金实行专项管理、专款专用，严禁截留、挤占和挪用。补助对象信息、资金发放情况应在村务公开栏公示。', date:'2026-01-01', tags:['危房改造','补助资金','管理'], source:'住建部门' },
+            { id:'l012', title:'农村低保审核确认办法', category:'社会救助', content:'申请低保应当以家庭为单位，由户主或者其代理人以户主的名义向户籍所在地乡镇人民政府提出书面申请。乡镇人民政府应当对申请人家庭经济状况进行调查核实，提出审核意见，并公示。县级人民政府民政部门审批。', date:'2026-01-01', tags:['低保','审核','公示'], source:'民政部门' },
+            { id:'l013', title:'农村土地经营权流转管理办法', category:'土地流转', content:'土地经营权流转应当遵循依法、自愿、有偿原则。流转期限不得超过承包期的剩余期限。流转价款由双方协商确定，可以采取固定价、浮动价等方式。流转合同应当采用书面形式，并报发包方备案。', date:'2026-01-01', tags:['土地流转','经营权','合同'], source:'农业农村部门' },
+            { id:'l014', title:'农村环境保护法律知识', category:'环境保护', content:'环境保护法规定：一切单位和个人都有保护环境的义务。农村地区应当加强土壤污染防治、水污染防治、大气污染防治。禁止露天焚烧秸秆、落叶等产生烟尘污染的物质。违反规定的，由相关部门责令改正并处罚款。', date:'2026-01-01', tags:['环保','秸秆禁烧','污染防治'], source:'生态环境部门' },
+            { id:'l015', title:'农村道路交通安全法规', category:'交通安全', content:'道路交通安全法规定：农村道路应当设置必要的交通标志、标线。禁止在道路上打场晒粮、摆摊设点、堆放物品。农用车辆不得载人。驾驶摩托车应当佩戴安全头盔。违反规定的，依法处罚。', date:'2026-01-01', tags:['道路','交通安全','法规'], source:'公安部门' },
+            { id:'l016', title:'农村防火安全规定', category:'消防安全', content:'消防法规定：任何单位和个人都有维护消防安全、保护消防设施、预防火灾、报告火警的义务。农村地区应当加强消防水源建设，配备必要的消防器材。禁止在具有火灾危险的场所使用明火。', date:'2026-01-01', tags:['消防','防火','安全'], source:'应急管理部门' },
+            { id:'l017', title:'农村食品安全监管', category:'食品安全', content:'食品安全法规定：食品生产经营者应当依照法律、法规和食品安全标准从事生产经营活动，保证食品安全。农村集市、小作坊、小餐饮等应当符合卫生要求。禁止生产经营病死、毒死或者死因不明的禽、畜、兽、水产动物肉类及其制品。', date:'2026-01-01', tags:['食品','安全','监管'], source:'市场监管部门' },
+            { id:'l018', title:'农村婚姻家庭法律常识', category:'婚姻家庭', content:'民法典规定：结婚年龄，男不得早于二十二周岁，女不得早于二十周岁。禁止包办、买卖婚姻和其他干涉婚姻自由的行为。夫妻在婚姻关系存续期间所得的财产，为夫妻的共同财产，归夫妻共同所有。', date:'2026-01-01', tags:['婚姻','家庭','财产'], source:'全国人大' },
+            { id:'l019', title:'农村继承法律知识', category:'继承权益', content:'民法典规定：遗产按照下列顺序继承：第一顺序：配偶、子女、父母；第二顺序：兄弟姐妹、祖父母、外祖父母。继承开始后，由第一顺序继承人继承，第二顺序继承人不继承。丧偶儿媳对公婆尽了主要赡养义务的，作为第一顺序继承人。', date:'2026-01-01', tags:['继承','顺序','遗产'], source:'全国人大' },
+            { id:'l020', title:'农村老年人权益保障法', category:'老年人权益', content:'老年人权益保障法规定：赡养人应当履行对老年人经济上供养、生活上照料和精神上慰藉的义务。赡养人不得以放弃继承权或者其他理由，拒绝履行赡养义务。国家建立健全农村养老服务体系。', date:'2026-01-01', tags:['老年人','赡养','权益'], source:'全国人大' },
+            { id:'l021', title:'农村妇女权益保障法', category:'妇女权益', content:'妇女权益保障法规定：妇女在政治的、经济的、文化的、社会的和家庭的生活等各方面享有同男子平等的权利。农村妇女享有土地承包经营权、宅基地使用权、集体收益分配权等。任何组织和个人不得以妇女未婚、结婚、离婚、丧偶等为由，侵害妇女在农村集体经济组织中的各项权益。', date:'2026-01-01', tags:['妇女','权益','平等'], source:'全国人大' },
+            { id:'l022', title:'农村未成年人保护法', category:'未成年人保护', content:'未成年人保护法规定：父母或者其他监护人应当依法履行对未成年人的监护职责和抚养义务。禁止对未成年人实施家庭暴力，禁止虐待、遗弃未成年人。农村留守儿童应当得到关爱和帮助。', date:'2026-01-01', tags:['未成年人','保护','监护'], source:'全国人大' },
+            { id:'l023', title:'农村残疾人保障法', category:'残疾人保障', content:'残疾人保障法规定：国家保障残疾人享有康复服务、教育、劳动就业、文化生活、社会保障等权利。农村残疾人享受各项惠农政策。禁止歧视、侮辱、侵害残疾人。', date:'2026-01-01', tags:['残疾人','保障','权利'], source:'全国人大' },
+            { id:'l024', title:'农村法律援助条例', category:'法律援助', content:'法律援助条例规定：公民因经济困难没有委托代理人的，可以向法律援助机构申请法律援助。农村五保户、低保户等群体申请法律援助免予经济困难审查。法律援助包括法律咨询、代理、刑事辩护等。', date:'2026-01-01', tags:['法律援助','困难群体','维权'], source:'司法部门' },
+            { id:'l025', title:'农村土地征收程序规定', category:'征地补偿', content:'土地征收程序：发布征收土地预公告→开展土地现状调查→进行社会稳定风险评估→拟定征地补偿安置方案并公告→听取意见→签订补偿协议→申请征收土地。征收土地应当给予公平、合理的补偿。', date:'2026-01-01', tags:['征地','程序','补偿'], source:'自然资源部门' },
+            { id:'l026', title:'农村信访工作规定', category:'信访维权', content:'信访工作条例规定：公民、法人或者其他组织可以采用信息网络、书信、电话、传真、走访等形式，向各级机关、单位反映情况，提出建议、意见或者投诉请求。信访人应当依法、逐级、有序信访。', date:'2026-01-01', tags:['信访','维权','渠道'], source:'信访部门' },
+            { id:'l027', title:'农村治安管理处罚法', category:'治安管理', content:'治安管理处罚法规定：对于扰乱公共秩序，妨害公共安全，侵犯人身权利、财产权利，妨害社会管理，具有社会危害性的行为，依法给予治安管理处罚。包括警告、罚款、行政拘留等。', date:'2026-01-01', tags:['治安','处罚','管理'], source:'公安部门' },
+            { id:'l028', title:'农村宅基地使用权流转限制', category:'土地管理', content:'宅基地使用权不得单独转让。城镇居民不得到农村购买宅基地。农村村民出卖、出租、赠与住宅后，再申请宅基地的，不予批准。宅基地使用权可以在本集体经济组织成员之间转让。', date:'2026-01-01', tags:['宅基地','流转','限制'], source:'自然资源部门' },
+            { id:'l029', title:'农村土地承包经营权确权登记', category:'土地承包', content:'农村土地承包经营权确权登记颁证，是对农村土地承包经营权的确认和保护。确权登记后，颁发农村土地承包经营权证，作为享有承包经营权的法律凭证。农户应当积极配合确权工作。', date:'2026-01-01', tags:['确权','登记','承包经营权'], source:'农业农村部门' },
+            { id:'l030', title:'农村电子商务法律规范', category:'电子商务', content:'电子商务法规定：电子商务经营者应当依法办理市场主体登记。农村电商经营者销售农产品，应当保证产品质量安全，如实描述产品信息。消费者权益受法律保护。', date:'2026-01-01', tags:['电商','法律','规范'], source:'市场监管部门' },
+            { id:'l031', title:'农村金融消费者权益保护', category:'金融权益', content:'金融消费者享有财产安全权、知情权、自主选择权、公平交易权、依法求偿权、受教育权等。农村金融服务机构应当提供清晰、准确的信息，不得误导消费者。', date:'2026-01-01', tags:['金融','消费者','权益'], source:'金融监管部门' },
+            { id:'l032', title:'农村土地经营权抵押贷款规定', category:'金融扶持', content:'农村土地经营权可以依法向金融机构抵押贷款。抵押人应当取得土地经营权权属证明，并经承包方同意。抵押权实现时，不得改变土地用途。', date:'2026-01-01', tags:['土地经营权','抵押','贷款'], source:'金融监管部门' },
+            { id:'l033', title:'农村生态环境保护红线', category:'环境保护', content:'生态保护红线内禁止开发性、生产性建设活动。农村地区应当保护耕地、林地、草地、湿地等资源。禁止毁林开垦、围湖造田等破坏生态的行为。', date:'2026-01-01', tags:['生态','红线','保护'], source:'生态环境部门' },
+            { id:'l034', title:'农村饮用水水源保护条例', category:'环境保护', content:'农村饮用水水源应当划定保护区，设置保护标志。保护区内禁止设置排污口，禁止堆放垃圾、粪便等污染物。任何单位和个人都有保护饮用水水源的义务。', date:'2026-01-01', tags:['饮用水','水源','保护'], source:'水利部门' },
+            { id:'l035', title:'农村养殖业环保要求', category:'环境保护', content:'畜禽养殖场应当建设粪污处理设施，实现粪污资源化利用。禁止在饮用水水源保护区、风景名胜区等区域建设养殖场。违反规定的，责令拆除或关闭。', date:'2026-01-01', tags:['养殖','环保','粪污'], source:'生态环境部门' },
+            { id:'l036', title:'农村秸秆综合利用促进法', category:'环境保护', content:'国家鼓励和支持秸秆肥料化、饲料化、能源化、基料化、原料化利用。对秸秆综合利用项目给予政策支持。禁止露天焚烧秸秆。', date:'2026-01-01', tags:['秸秆','综合利用','禁止焚烧'], source:'农业农村部门' },
+            { id:'l037', title:'农村信用体系建设', category:'信用管理', content:'农村信用体系建设包括农户信用信息采集、信用评价、信用激励与惩戒。守信农户在贷款、补贴等方面享受便利。失信行为将被记录并公示。', date:'2026-01-01', tags:['信用','体系','农户'], source:'人民银行' },
+            { id:'l038', title:'农村宅基地退出补偿机制', category:'土地管理', content:'鼓励进城落户农民自愿有偿退出宅基地。退出补偿标准由集体经济组织与农户协商确定。退出的宅基地应当优先用于保障本集体经济组织成员的宅基地需求。', date:'2026-01-01', tags:['宅基地','退出','补偿'], source:'自然资源部门' },
+            { id:'l039', title:'农村产业融合发展用地政策', category:'土地管理', content:'农村产业融合发展用地应当符合规划，优先使用存量建设用地。鼓励利用闲置宅基地和农房发展乡村旅游、农产品加工等。不得违规占用耕地。', date:'2026-01-01', tags:['产业融合','用地','政策'], source:'自然资源部门' },
+            { id:'l040', title:'农村公益事业一事一议财政奖补', category:'基层治理', content:'村级公益事业建设实行一事一议，由村民会议或村民代表会议讨论决定。财政给予奖补，解决村民迫切需要的水利、道路、环境等问题。', date:'2026-01-01', tags:['公益事业','一事一议','奖补'], source:'财政部门' },
+        ],
+        notices: [
+            { id:'n001', title:'关于开展秋季农作物种植面积核查的通知', content:'各位村民：根据上级工作安排，将于近期开展秋季农作物种植面积核查工作。请各农户配合核查人员，如实申报水稻、小麦、玉米等作物种植面积。核查结果将作为种粮补贴发放依据。', date:'2026-09-05', publisher:'村委会', priority:'high' },
+            { id:'n002', title:'开展全村卫生大扫除活动', content:'全体村民请注意：为推进人居环境整治工作，定于近期开展全村卫生大扫除活动。请各户负责自家房前屋后卫生，清理杂草、垃圾。村委会将组织检查评比。', date:'2026-09-06', publisher:'村委会', priority:'medium' },
+            { id:'n003', title:'关于做好秋收期间安全生产的通知', content:'当前正值秋收季节，请广大村民注意：使用农机注意安全，严禁焚烧秸秆，晾晒粮食注意交通安全，注意防火。安全第一，预防为主！', date:'2026-09-04', publisher:'村委会', priority:'high' },
+            { id:'n004', title:'城乡居民医保缴费开始啦', content:'本年度城乡居民基本医疗保险缴费已经开始，个人缴费标准请关注当地通知。请广大村民及时通过手机APP、银行代扣或到村委会代缴点缴费。特困人员、低保对象享受政府资助。', date:'2026-09-02', publisher:'村委会', priority:'high' },
+            { id:'n005', title:'关于开展秋季动物防疫工作的通知', content:'为做好秋季动物防疫工作，定于近期对全村畜禽进行集中免疫接种。请各养殖户配合防疫员做好疫苗接种。秋季防疫是预防重大动物疫病的关键措施。', date:'2026-09-08', publisher:'畜牧兽医站', priority:'medium' },
+            { id:'n006', title:'村文化活动中心开放时间调整公告', content:'各位村民：自即日起，村文化活动中心开放时间调整为每日14:00-20:00，周末9:00-20:00。提供图书阅览、棋牌娱乐、健身器材等服务。', date:'2026-09-01', publisher:'村委会', priority:'normal' },
+            { id:'n007', title:'关于组织参加农技培训班的通知', content:'农业农村部门将于近期举办种植技术培训班，内容涵盖病虫害防治、科学施肥、收割储藏等。培训免费，提供午餐。有意参加的村民请到村委会报名。', date:'2026-09-07', publisher:'村委会', priority:'normal' },
+            { id:'n008', title:'强降雨天气预警及防范通知', content:'根据气象部门预报，近期将出现强降雨天气。请广大村民做好防范：检查房屋排水，低洼农田开沟排水，已收割粮食及时入库，注意出行安全。', date:'2026-09-09', publisher:'村委会', priority:'high' },
+            { id:'n009', title:'关于开展农村房屋安全隐患排查的通知', content:'根据上级要求，将开展农村房屋安全隐患排查。重点排查老旧房屋。请各户配合入户检查，如实报告房屋情况。', date:'2026-09-10', publisher:'村委会', priority:'medium' },
+            { id:'n010', title:'村口道路维修施工公告', content:'因村口主干道出现破损，定于近期进行维修施工。施工期间该路段将半幅封闭，请过往车辆减速慢行。施工带来不便，敬请谅解。', date:'2026-09-11', publisher:'村委会', priority:'normal' },
+            { id:'n011', title:'关于做好节日期间安全工作的通知', content:'节日将至，请广大村民注意防火防盗，注意用电安全，严禁酒后驾车，看管好儿童。发现可疑人员及时报告。', date:'2026-09-20', publisher:'村委会', priority:'medium' },
+            { id:'n012', title:'秋季秸秆禁烧工作动员通知', content:'秋收在即，秸秆禁烧工作全面启动。严禁露天焚烧秸秆。秸秆可采取还田、青贮、堆肥等方式处理。请广大村民自觉遵守。', date:'2026-09-15', publisher:'村委会', priority:'high' },
+        ]
+    };
+
+    // ============ STATE ============
+    let currentPage = 'home';
+    let selectedCategory = '全部';
+    let currentUser = null; // 当前登录用户 {username, role:'admin'}
+    let userNotices = JSON.parse(localStorage.getItem('user_notices') || '[]');
+    let userContents = JSON.parse(localStorage.getItem('user_contents') || '[]'); // 用户发布的所有内容
+    let authMode = 'login';
+
+    // ============ AI PUSH DATA ============
+    const aiReminders = [
+        { title: '春耕备耕正当时', content: '当前是春耕备耕关键期，请做好种子、化肥、农药等农资准备，检修农机具。根据当地气候适时播种，注意防范倒春寒。', tag: '🌱 春耕', months: [2,3,4] },
+        { title: '夏收夏种忙', content: '小麦、油菜等作物陆续成熟，请抢晴收割，及时晾晒。收割后抓紧夏播，确保秋粮面积。注意防暑降温和农机安全。', tag: '☀️ 夏收', months: [5,6] },
+        { title: '夏季田间管理要点', content: '夏季是作物生长旺盛期，需加强水肥管理，防治病虫害。水稻注意晒田控苗，玉米追施攻穗肥，果园做好疏果套袋。', tag: '🌾 夏管', months: [7,8] },
+        { title: '秋收秋种进行时', content: '秋收季节，请关注天气变化，及时收割晾晒。同时做好冬小麦、油菜等秋播准备，适时播种，为来年丰收打基础。', tag: '🍂 秋收', months: [9,10] },
+        { title: '冬季农事管理', content: '冬季做好农田水利建设，果树修剪，畜禽保暖防寒。利用农闲时间参加技能培训，为来年生产做准备。', tag: '❄️ 冬管', months: [11,12,1] },
+    ];
+
+    // ============ UTILITY ============
+    function getGreeting() { const h = new Date().getHours(); if (h<6) return '凌晨好'; if (h<9) return '早上好'; if (h<12) return '上午好'; if (h<14) return '中午好'; if (h<18) return '下午好'; return '晚上好'; }
+    function formatDate(d) { const dt = new Date(d); const now = new Date(); const diff = Math.floor((now-dt)/(1000*60*60*24)); if (diff===0) return '今天'; if (diff===1) return '昨天'; if (diff<7) return diff+'天前'; return d; }
+    function truncateText(text, len) { return text.length > len ? text.substring(0,len)+'...' : text; }
+    function getCategoryClass(cat) { if (['粮食作物','经济作物','蔬菜园艺','果树种植','特色种植','畜牧养殖','水产养殖','土壤肥料','植保技术','灌溉技术','机械化生产','加工储藏','数字农业','经营管理','安全知识','种子知识','农事安排','有机种植','生态种养'].includes(cat)) return 'agri'; return ''; }
+    function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._timeout); t._timeout = setTimeout(()=>t.classList.remove('show'), 2200); }
+    function debounce(fn, delay) { let timer; return function(...args) { clearTimeout(timer); timer = setTimeout(()=>fn.apply(this,args), delay); }; }
+    function saveUserNotices() { localStorage.setItem('user_notices', JSON.stringify(userNotices)); }
+    function saveUserContents() { localStorage.setItem('user_contents', JSON.stringify(userContents)); }
+
+    // ============ RENDER HOME ============
+    function renderHome() {
+        const currentMonth = new Date().getMonth() + 1;
+        let ai = aiReminders[3];
+        for (let item of aiReminders) { if (item.months.includes(currentMonth)) { ai = item; break; } }
+        document.getElementById('ai-title').textContent = ai.title;
+        document.getElementById('ai-content').textContent = ai.content;
+        document.getElementById('ai-tag').textContent = ai.tag;
+
+        // 合并用户发布的内容
+        const allNotices = [...userNotices, ...DB.notices].sort((a,b)=>b.date.localeCompare(a.date));
+        const allPolicies = [...DB.policies, ...userContents.filter(c=>c.type==='policy')];
+        const allAgri = [...DB.agriTech, ...userContents.filter(c=>c.type==='agri')];
+        const allLegal = [...DB.legal, ...userContents.filter(c=>c.type==='legal')];
+
+        // Stats
+        document.getElementById('stat-policies').textContent = allPolicies.length;
+        document.getElementById('stat-agri').textContent = allAgri.length;
+        document.getElementById('stat-legal').textContent = allLegal.length;
+        document.getElementById('stat-notices').textContent = allNotices.length;
+        document.getElementById('notice-badge').textContent = allNotices.length > 99 ? '99+' : allNotices.length;
+
+        // Home lists
+        document.getElementById('home-notices').innerHTML = allNotices.slice(0,3).map(n=>`
+            <div class="content-card" onclick="viewNotice('${n.id}')">
+                ${n.priority==='high'?'<div class="priority-high"></div>':n.priority==='medium'?'<div class="priority-medium"></div>':''}
+                <div class="cc-top"><span class="cc-title">${n.title}</span><span class="cc-category notice">通知</span></div>
+                <div class="cc-content">${truncateText(n.content,50)}</div>
+                <div class="cc-footer"><span>${n.publisher}</span><span class="cc-date">${formatDate(n.date)}</span></div>
+            </div>`).join('') || '<div style="text-align:center;color:#999;padding:12px;">暂无通知</div>';
+
+        document.getElementById('home-policies').innerHTML = allPolicies.slice(0,3).map(p=>`
+            <div class="content-card" onclick="viewPolicy('${p.id}')">
+                <div class="cc-top"><span class="cc-title">${p.title}</span><span class="cc-category">${p.category}</span></div>
+                <div class="cc-content">${truncateText(p.content,50)}</div>
+                <div class="cc-footer"><div class="cc-tags">${p.tags.slice(0,2).map(t=>`<span class="cc-tag">${t}</span>`).join('')}</div><span class="cc-date">${formatDate(p.date)}</span></div>
+            </div>`).join('');
+
+        document.getElementById('home-agri').innerHTML = allAgri.slice(0,3).map(a=>`
+            <div class="content-card" onclick="viewAgri('${a.id}')">
+                <div class="cc-top"><span class="cc-title">${a.title}</span><span class="cc-category agri">${a.category}</span></div>
+                <div class="cc-content">${truncateText(a.content,50)}</div>
+                <div class="cc-footer"><div class="cc-tags">${a.tags.slice(0,2).map(t=>`<span class="cc-tag">${t}</span>`).join('')}</div><span class="cc-date">${formatDate(a.date)}</span></div>
+            </div>`).join('');
+
+        document.getElementById('home-legal').innerHTML = allLegal.slice(0,3).map(l=>`
+            <div class="content-card" onclick="viewLegal('${l.id}')">
+                <div class="cc-top"><span class="cc-title">${l.title}</span><span class="cc-category legal">${l.category}</span></div>
+                <div class="cc-content">${truncateText(l.content,50)}</div>
+                <div class="cc-footer"><div class="cc-tags">${l.tags.slice(0,2).map(t=>`<span class="cc-tag">${t}</span>`).join('')}</div><span class="cc-date">${formatDate(l.date)}</span></div>
+            </div>`).join('');
+    }
+
+    // ============ NAVIGATION ============
+    function navigateTo(page) {
+        currentPage = page;
+        document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+        document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+        const main = document.getElementById('main-content');
+        main.scrollTop = 0;
+        switch(page) {
+            case 'home': renderHome(); break;
+            case 'policy': selectedCategory='全部'; renderListPage('policy'); break;
+            case 'agri': selectedCategory='全部'; renderListPage('agri'); break;
+            case 'legal': selectedCategory='全部'; renderListPage('legal'); break;
+            case 'notice': renderListPage('notice'); break;
+            case 'more': renderMorePage(); break;
+        }
+    }
+
+    function renderListPage(type) {
+        const main = document.getElementById('main-content');
+        let data, title, icon;
+        if (type==='policy') { data = [...DB.policies, ...userContents.filter(c=>c.type==='policy')]; title='惠农政策'; icon='📋'; }
+        else if (type==='agri') { data = [...DB.agriTech, ...userContents.filter(c=>c.type==='agri')]; title='农技知识'; icon='🌱'; }
+        else if (type==='legal') { data = [...DB.legal, ...userContents.filter(c=>c.type==='legal')]; title='法律知识'; icon='⚖️'; }
+        else if (type==='notice') { data = [...userNotices, ...DB.notices].sort((a,b)=>b.date.localeCompare(a.date)); title='村务通知'; icon='📢'; }
+
+        let cats = type==='notice' ? [] : [...new Set(data.map(d=>d.category))];
+        let filtered = data;
+        if (selectedCategory !== '全部' && type!=='notice') {
+            filtered = data.filter(d=>d.category===selectedCategory);
+        }
+        main.innerHTML = `<div class="fade-in">
+            ${type!=='notice' ? renderCategoryTabs(cats, selectedCategory) : ''}
+            <div class="section-header"><span class="section-title"><span class="st-icon">${icon}</span> ${selectedCategory==='全部'?title:selectedCategory}</span><span class="section-more">共${filtered.length}条</span></div>
+            <div class="content-list">${filtered.map(item=>{
+                if (type==='policy') return `<div class="content-card" onclick="viewPolicy('${item.id}')"><div class="cc-top"><span class="cc-title">${item.title}</span><span class="cc-category">${item.category}</span></div><div class="cc-content">${truncateText(item.content,60)}</div><div class="cc-footer"><div class="cc-tags">${item.tags.map(t=>`<span class="cc-tag">${t}</span>`).join('')}</div><span class="cc-date">${item.date}</span></div></div>`;
+                if (type==='agri') return `<div class="content-card" onclick="viewAgri('${item.id}')"><div class="cc-top"><span class="cc-title">${item.title}</span><span class="cc-category agri">${item.category}</span></div><div class="cc-content">${truncateText(item.content,60)}</div><div class="cc-footer"><div class="cc-tags">${item.tags.map(t=>`<span class="cc-tag">${t}</span>`).join('')}</div><span class="cc-date">${item.date}</span></div></div>`;
+                if (type==='legal') return `<div class="content-card" onclick="viewLegal('${item.id}')"><div class="cc-top"><span class="cc-title">${item.title}</span><span class="cc-category legal">${item.category}</span></div><div class="cc-content">${truncateText(item.content,60)}</div><div class="cc-footer"><div class="cc-tags">${item.tags.map(t=>`<span class="cc-tag">${t}</span>`).join('')}</div><span class="cc-date">${item.date}</span></div></div>`;
+                if (type==='notice') return `<div class="content-card" onclick="viewNotice('${item.id}')">${item.priority==='high'?'<div class="priority-high"></div>':item.priority==='medium'?'<div class="priority-medium"></div>':''}<div class="cc-top"><span class="cc-title">${item.title}</span><span class="cc-category notice">${item.priority==='high'?'紧急':item.priority==='medium'?'重要':'普通'}</span></div><div class="cc-content">${truncateText(item.content,60)}</div><div class="cc-footer"><span>${item.publisher}</span><span class="cc-date">${item.date}</span></div></div>`;
+            }).join('') || '<div style="text-align:center;color:#999;padding:24px;">暂无内容</div>'}</div>
+        </div>`;
+    }
+
+    function renderCategoryTabs(cats, activeCat) {
+        return `<div class="category-tabs"><button class="cat-tab ${activeCat==='全部'?'active':''}" onclick="setCategory('全部')">全部</button>${cats.map(c=>`<button class="cat-tab ${activeCat===c?'active':''}" onclick="setCategory('${c}')">${c}</button>`).join('')}</div>`;
+    }
+
+    function setCategory(cat) { selectedCategory = cat; if (currentPage==='policy'||currentPage==='agri'||currentPage==='legal') renderListPage(currentPage); }
+
+    function renderMorePage() {
+        const main = document.getElementById('main-content');
+        main.innerHTML = `<div class="fade-in">
+            <div class="section-header"><span class="section-title"><span class="st-icon">☰</span> 更多服务</span></div>
+            <div class="content-list">
+                <div class="content-card" onclick="openSearch()"><div class="cc-top"><span class="cc-title">🔍 智能搜索</span></div><div class="cc-content">搜索政策、农技、法律、通知</div></div>
+                <div class="content-card" onclick="showAuth()"><div class="cc-top"><span class="cc-title">🔐 村干部登录/注册</span></div><div class="cc-content">发布通知、政策、农技、法律</div></div>
+                <div class="content-card" onclick="simulateScan()"><div class="cc-top"><span class="cc-title">📷 扫描新动态</span></div><div class="cc-content">查看最新发布内容</div></div>
+                <div class="content-card" onclick="showToast('版本 v3.0.0 · 数据持续更新')"><div class="cc-top"><span class="cc-title">ℹ️ 关于版本</span></div><div class="cc-content">村便民信息助手 v3.0.0｜数据更新于2026年9月</div></div>
+            </div>
+        </div>`;
+    }
+
+    // ============ DETAIL VIEWS ============
+    function openDetail(title, contentHtml) {
+        document.getElementById('detail-title').textContent = title;
+        document.getElementById('detail-content').innerHTML = contentHtml;
+        document.getElementById('detail-view').classList.add('show');
+    }
+    function closeDetail() { document.getElementById('detail-view').classList.remove('show'); }
+
+    function viewPolicy(id) {
+        const all = [...DB.policies, ...userContents.filter(c=>c.type==='policy')];
+        const p = all.find(x=>x.id===id); if(!p) return;
+        openDetail(p.title, `<h3>${p.title}</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"><span class="cc-category" style="font-size:11px;padding:4px 10px;">${p.category}</span>${p.tags.map(t=>`<span class="cc-tag" style="font-size:11px;">${t}</span>`).join('')}</div><p>${p.content}</p><div class="detail-meta"><span>📅 发布日期：${p.date}</span><span>🏛️ 来源：${p.source||'村委会'}</span></div>`);
+    }
+    function viewAgri(id) {
+        const all = [...DB.agriTech, ...userContents.filter(c=>c.type==='agri')];
+        const a = all.find(x=>x.id===id); if(!a) return;
+        openDetail(a.title, `<h3>${a.title}</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"><span class="cc-category agri" style="font-size:11px;padding:4px 10px;">${a.category}</span>${a.tags.map(t=>`<span class="cc-tag" style="font-size:11px;">${t}</span>`).join('')}${a.season?`<span class="cc-tag" style="font-size:11px;">📅${a.season}</span>`:''}</div><p>${a.content}</p><div class="detail-meta"><span>📅 更新日期：${a.date}</span><span>🌾 适用季节：${a.season||'全年'}</span></div>`);
+    }
+    function viewLegal(id) {
+        const all = [...DB.legal, ...userContents.filter(c=>c.type==='legal')];
+        const l = all.find(x=>x.id===id); if(!l) return;
+        openDetail(l.title, `<h3>${l.title}</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"><span class="cc-category legal" style="font-size:11px;padding:4px 10px;">${l.category}</span>${l.tags.map(t=>`<span class="cc-tag" style="font-size:11px;">${t}</span>`).join('')}</div><p>${l.content}</p><div class="detail-meta"><span>📅 发布日期：${l.date}</span><span>🏛️ 来源：${l.source||'村委会'}</span></div>`);
+    }
+    function viewNotice(id) {
+        const all = [...userNotices, ...DB.notices];
+        const n = all.find(x=>x.id===id); if(!n) return;
+        const priorityMap = { high:'🔴 紧急', medium:'🟡 重要', normal:'🟢 普通' };
+        openDetail(n.title, `<h3>${n.title}</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"><span class="cc-category notice" style="font-size:11px;padding:4px 10px;">${priorityMap[n.priority]||'普通'}</span></div><p>${n.content}</p><div class="detail-meta"><span>📅 发布时间：${n.date}</span><span>🏛️ 发布单位：${n.publisher}</span></div>`);
+    }
+    function viewAI() {
+        const currentMonth = new Date().getMonth()+1;
+        let ai = aiReminders[3]; for(let item of aiReminders) if(item.months.includes(currentMonth)) { ai=item; break; }
+        openDetail('🤖 AI智能推送', `<h3>${ai.title}</h3><p>${ai.content}</p><div style="background:#F5F7F5;border-radius:8px;padding:12px;margin-top:12px;"><span style="font-size:12px;color:#5A5A6E;">💡 温馨提示：以上建议基于当前季节和常见作物生成，请结合当地实际情况灵活调整。</span></div>`);
+    }
+
+    // ============ SEARCH ============
+    function openSearch() {
+        document.getElementById('search-overlay').classList.add('show');
+        document.getElementById('search-input').value=''; document.getElementById('search-input').focus();
+        document.getElementById('sr-count').textContent='共 0 条结果';
+        document.getElementById('sr-empty').style.display='block'; document.getElementById('search-result-list').innerHTML='';
+    }
+    function closeSearch() { document.getElementById('search-overlay').classList.remove('show'); }
+
+    const performSearch = debounce((query)=>{
+        const allPolicies = [...DB.policies, ...userContents.filter(c=>c.type==='policy')];
+        const allAgri = [...DB.agriTech, ...userContents.filter(c=>c.type==='agri')];
+        const allLegal = [...DB.legal, ...userContents.filter(c=>c.type==='legal')];
+        const allNotices = [...userNotices, ...DB.notices];
+        if(!query.trim()) { document.getElementById('sr-count').textContent='共 0 条结果'; document.getElementById('sr-empty').style.display='block'; document.getElementById('sr-empty').innerHTML='<span class="se-icon">🔍</span>输入关键词开始搜索'; document.getElementById('search-result-list').innerHTML=''; return; }
+        const q = query.toLowerCase();
+        const results = [];
+        allPolicies.forEach(p=>{ if(p.title.includes(q)||p.content.includes(q)||p.tags.some(t=>t.includes(q))||p.category.includes(q)) results.push({type:'政策',item:p,title:p.title,content:p.content,cat:p.category,date:p.date,tags:p.tags,id:p.id}); });
+        allAgri.forEach(a=>{ if(a.title.includes(q)||a.content.includes(q)||a.tags.some(t=>t.includes(q))||a.category.includes(q)) results.push({type:'农技',item:a,title:a.title,content:a.content,cat:a.category,date:a.date,tags:a.tags,id:a.id}); });
+        allLegal.forEach(l=>{ if(l.title.includes(q)||l.content.includes(q)||l.tags.some(t=>t.includes(q))||l.category.includes(q)) results.push({type:'法律',item:l,title:l.title,content:l.content,cat:l.category,date:l.date,tags:l.tags,id:l.id}); });
+        allNotices.forEach(n=>{ if(n.title.includes(q)||n.content.includes(q)||n.publisher.includes(q)) results.push({type:'通知',item:n,title:n.title,content:n.content,cat:n.publisher,date:n.date,tags:[],id:n.id}); });
+        document.getElementById('sr-count').textContent = `找到 ${results.length} 条结果`;
+        if(results.length===0) { document.getElementById('sr-empty').style.display='block'; document.getElementById('sr-empty').innerHTML='<span class="se-icon">😕</span>未找到相关结果，请尝试其他关键词'; document.getElementById('search-result-list').innerHTML=''; }
+        else { document.getElementById('sr-empty').style.display='none'; document.getElementById('search-result-list').innerHTML = results.slice(0,30).map(r=>{
+            const typeClass = r.type==='政策'?'':r.type==='农技'?'agri':r.type==='法律'?'legal':'notice';
+            const typeLabel = r.type;
+            const onclick = r.type==='政策'?`viewPolicy('${r.id}')`:r.type==='农技'?`viewAgri('${r.id}')`:r.type==='法律'?`viewLegal('${r.id}')`:`viewNotice('${r.id}')`;
+            return `<div class="content-card" onclick="${onclick}"><div class="cc-top"><span class="cc-title">${highlightText(r.title,q)}</span><span class="cc-category ${typeClass}">${typeLabel}</span></div><div class="cc-content">${highlightText(truncateText(r.content,50),q)}</div><div class="cc-footer"><span>${r.cat}</span><span class="cc-date">${r.date}</span></div></div>`;
+        }).join(''); }
+    }, 250);
+
+    function highlightText(text, query) { if(!query||!text) return text; const idx=text.toLowerCase().indexOf(query.toLowerCase()); if(idx===-1) return text; return text.substring(0,idx)+'<span class="search-highlight">'+text.substring(idx,idx+query.length)+'</span>'+text.substring(idx+query.length); }
+
+    document.getElementById('search-input').addEventListener('input', function(){ performSearch(this.value); });
+    document.getElementById('search-input').addEventListener('keydown', function(e){ if(e.key==='Escape') closeSearch(); });
+
+    // ============ AUTH (登录注册) ============
+    function showAuth() { toggleAdmin(); }
+    function switchAuthMode(mode) { authMode = mode; document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active')); document.querySelector(`.auth-tab[data-mode="${mode}"]`).classList.add('active'); document.getElementById('auth-btn').textContent = mode==='login'?'登 录':'注 册'; document.getElementById('auth-error').textContent=''; }
+    function handleAuth() {
+        const username = document.getElementById('auth-username').value.trim();
+        const password = document.getElementById('auth-password').value;
+        if(!username || !password) { document.getElementById('auth-error').textContent='请输入用户名和密码'; return; }
+        // 简单用户存储
+        let users = JSON.parse(localStorage.getItem('users') || '[]');
+        if(authMode==='register') {
+            if(users.find(u=>u.username===username)) { document.getElementById('auth-error').textContent='用户名已存在'; return; }
+            users.push({username, password, role:'admin'});
+            localStorage.setItem('users', JSON.stringify(users));
+            currentUser = {username, role:'admin'};
+            document.getElementById('auth-error').textContent='';
+            showToast('✅ 注册成功，已登录');
+            enterAdminDashboard();
+        } else {
+            const user = users.find(u=>u.username===username && u.password===password);
+            if(!user) { document.getElementById('auth-error').textContent='用户名或密码错误'; return; }
+            currentUser = {username:user.username, role:user.role||'admin'};
+            document.getElementById('auth-error').textContent='';
+            showToast('✅ 登录成功');
+            enterAdminDashboard();
+        }
+    }
+    function enterAdminDashboard() {
+        document.getElementById('auth-container').style.display='none';
+        document.getElementById('admin-dashboard').style.display='block';
+        document.getElementById('admin-username').textContent = currentUser.username;
+        renderAdminContentList();
+    }
+    function logout() {
+        currentUser = null;
+        document.getElementById('auth-container').style.display='flex';
+        document.getElementById('admin-dashboard').style.display='none';
+        document.getElementById('auth-username').value='';
+        document.getElementById('auth-password').value='';
+        showToast('已退出登录');
+    }
+
+    // ============ ADMIN PUBLISH ============
+    function publishContent() {
+        if(!currentUser) { showToast('请先登录'); return; }
+        const type = document.getElementById('content-type').value;
+        const title = document.getElementById('content-title-input').value.trim();
+        const category = document.getElementById('content-category-input').value.trim();
+        const tags = document.getElementById('content-tags-input').value.split(',').map(t=>t.trim()).filter(t=>t);
+        const content = document.getElementById('content-content-input').value.trim();
+        if(!title || !category || !content) { showToast('⚠️ 请填写标题、分类和内容'); return; }
+        const newItem = {
+            id: 'user_' + Date.now() + '_' + type,
+            type,
+            title,
+            category: category || '其他',
+            tags: tags.length?tags:['自定义'],
+            content,
+            date: new Date().toISOString().split('T')[0],
+            source: currentUser.username,
+            publisher: currentUser.username,
+            priority: 'normal'
+        };
+        if(type==='notice') { userNotices.unshift(newItem); saveUserNotices(); }
+        else { userContents.unshift(newItem); saveUserContents(); }
+        // 清空表单
+        document.getElementById('content-title-input').value=''; document.getElementById('content-category-input').value=''; document.getElementById('content-tags-input').value=''; document.getElementById('content-content-input').value='';
+        renderAdminContentList();
+        renderHome();
+        showToast('✅ 发布成功');
+    }
+    function deleteUserContent(id, type) {
+        if(type==='notice') { userNotices = userNotices.filter(n=>n.id!==id); saveUserNotices(); }
+        else { userContents = userContents.filter(c=>c.id!==id); saveUserContents(); }
+        renderAdminContentList();
+        renderHome();
+        showToast('🗑️ 已删除');
+    }
+    function renderAdminContentList() {
+        const container = document.getElementById('admin-content-list');
+        const allUserContent = [...userNotices.map(n=>({...n, type:'notice'})), ...userContents];
+        if(allUserContent.length===0) { container.innerHTML='<div style="text-align:center;color:#999;padding:16px;">暂无发布内容</div>'; return; }
+        container.innerHTML = allUserContent.map(item=>`
+            <div class="admin-notice-item">
+                <div class="ani-info">
+                    <div class="ani-title">${item.type==='notice'?'📢':item.type==='policy'?'📋':item.type==='agri'?'🌱':'⚖️'} ${item.title}</div>
+                    <div class="ani-date">${item.date} · ${item.type==='notice'?'通知':item.type}</div>
+                </div>
+                <button class="btn-delete" onclick="deleteUserContent('${item.id}','${item.type}')">✕</button>
+            </div>
+        `).join('');
+    }
+
+    // ============ ADMIN PANEL (toggle) ============
+    function toggleAdmin() {
+        const panel = document.getElementById('admin-panel');
+        panel.classList.toggle('show');
+        if(panel.classList.contains('show')) {
+            if(currentUser) { document.getElementById('auth-container').style.display='none'; document.getElementById('admin-dashboard').style.display='block'; document.getElementById('admin-username').textContent=currentUser.username; renderAdminContentList(); }
+            else { document.getElementById('auth-container').style.display='flex'; document.getElementById('admin-dashboard').style.display='none'; }
+        }
+    }
+    function closeAdmin() { document.getElementById('admin-panel').classList.remove('show'); }
+
+    // ============ QR SCAN SIMULATION ============
+    function simulateScan() {
+        const allNotices = [...userNotices, ...DB.notices].sort((a,b)=>b.date.localeCompare(a.date));
+        const latest = allNotices.slice(0,5);
+        const latestContent = [...userContents].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+        let msg = '';
+        if(latest.length||latestContent.length) {
+            msg += '📢 最新动态：\n';
+            latest.slice(0,3).forEach(n=>{ msg += `• ${n.title} (${n.date})\n`; });
+            latestContent.slice(0,2).forEach(c=>{ msg += `• ${c.title} (${c.type})\n`; });
+            msg += `\n共${allNotices.length}条通知，${userContents.length}条新增内容。`;
+        } else {
+            msg = '暂无新动态';
+        }
+        showToast(msg);
+        // 可以模拟打开通知页面
+        navigateTo('notice');
+    }
+
+    // ============ INIT ============
+    function init() {
+        document.getElementById('greeting-text').textContent = getGreeting() + '，村民您好';
+        renderHome();
+        setTimeout(()=>document.getElementById('loading-screen').classList.add('hidden'), 800);
+        document.addEventListener('keydown', function(e) { if(e.key==='Escape') { closeDetail(); closeSearch(); closeAdmin(); } });
+    }
+    init();
+</script>
+</body>
+</html>
